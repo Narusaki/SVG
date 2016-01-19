@@ -22,10 +22,12 @@ public:
 	void clear();
 	void clearGPU();
 
-private:
+public:
 	Edge *edges;
 	int edgeNum;
 	double *angles;
 	int vertNum;
+	int *edgeAdjToVert;
+	int faceNum;
 };
 #endif

@@ -1,4 +1,5 @@
 #include "Mesh.cuh"
+#include "book.cuh"
 #include <fstream>
 #include <iostream>
 #include <string>
@@ -73,7 +74,7 @@ bool Mesh::LoadFromFile(const char *fileName)
 			edgesVec[edgeIdx].nextEdge = i + (j + 1) % 3;
 			edgesVec[edgeIdx].prevEdge = i + (j + 2) % 3;
 
-			if (v0 > v1) swap(v0, v1);
+			if (v0 > v1) std::swap(v0, v1);
 			auto iter = verts2edge.find(make_pair(v0, v1));
 			if (iter != verts2edge.end())
 			{
@@ -90,10 +91,15 @@ bool Mesh::LoadFromFile(const char *fileName)
 
 	edgeNum = edgesVec.size();
 	edges = new Edge[edgeNum];
+	copy(edgesVec.begin(), edgesVec.end(), edges);
+
 	vertNum = vertsVec.size();
 	angles = new double[vertNum];
 	memset(angles, 0, vertNum * sizeof(double));
-	copy(edgesVec.begin(), edgesVec.end(), edges);
+
+	edgeAdjToVert = new int[vertNum];
+
+	faceNum = facesVec.size() / 3;
 
 	for (int i = 0; i < edgeNum; ++i)
 	{
@@ -110,6 +116,8 @@ bool Mesh::LoadFromFile(const char *fileName)
 		if (curAngle > 1.0) curAngle = 1.0; else if (curAngle < -1.0) curAngle = -1.0;
 		curAngle = acos(curAngle);
 		angles[edges[i].verts[1]] += curAngle;
+
+		edgeAdjToVert[edges[i].verts[0]] = i;
 	}
 
 	return true;
@@ -120,14 +128,14 @@ bool Mesh::copyToGPU(Mesh *d_mesh)
 	cudaError_t cudaStatus;
 	d_mesh->edgeNum = edgeNum;
 	d_mesh->vertNum = vertNum;
-	cudaStatus = cudaMalloc((void**)&(d_mesh->edges), edgeNum * sizeof(Edge));
-	if (cudaStatus != cudaSuccess) {
-		std::cout << "Allocation for mesh edges failed!" << endl; return false;
-	}
-	cudaStatus = cudaMalloc((void**)(&d_mesh->angles), vertNum * sizeof(double));
-	if (cudaStatus != cudaSuccess) {
-		std::cout << "Allocation for mesh angles failed!" << endl; return false;
-	}
+	d_mesh->faceNum = faceNum;
+	HANDLE_ERROR(cudaMalloc((void**)&(d_mesh->edges), edgeNum * sizeof(Edge)));
+	HANDLE_ERROR(cudaMalloc((void**)(&d_mesh->angles), vertNum * sizeof(double)));
+	HANDLE_ERROR(cudaMalloc((void**)&(d_mesh->edgeAdjToVert), vertNum * sizeof(int)));
+
+	HANDLE_ERROR(cudaMemcpy(d_mesh->edges, edges, edgeNum * sizeof(Edge), cudaMemcpyHostToDevice));
+	HANDLE_ERROR(cudaMemcpy(d_mesh->angles, angles, vertNum * sizeof(double), cudaMemcpyHostToDevice));
+	HANDLE_ERROR(cudaMemcpy(d_mesh->edgeAdjToVert, edgeAdjToVert, vertNum * sizeof(int), cudaMemcpyHostToDevice));
 	return true;
 }
 
@@ -135,12 +143,15 @@ void Mesh::clear()
 {
 	if (edges) delete[] edges;
 	if (angles) delete[] angles;
+	if (edgeAdjToVert) delete[] edgeAdjToVert;
 
-	edgeNum = 0; vertNum = 0;
+	edgeNum = 0; vertNum = 0; faceNum = 0;
 }
 
 void Mesh::clearGPU()
 {
-	cudaFree(edges); cudaFree(angles);
-	edgeNum = 0; vertNum = 0;
+	HANDLE_ERROR(cudaFree(edges));
+	HANDLE_ERROR(cudaFree(angles));
+	HANDLE_ERROR(cudaFree(edgeAdjToVert));
+	edgeNum = 0; vertNum = 0; faceNum = 0;
 }

@@ -1,0 +1,133 @@
+#ifndef ICH_CUH
+#define ICH_CUH
+
+#include "Mesh.cuh"
+#include <vector>
+#include "PriorityQueue.cuh"
+#include <math.h>
+
+#define RELATIVE_ERROR 1e-8
+//#define L_RELATIVE_ERROR 1e-3
+
+// This class is exported from the ICH.dll
+class ICH {
+public:
+	struct Window
+	{
+		unsigned edgeID;
+		double b0, b1, d0, d1;
+		double pseudoSrcDist, minDist;
+		unsigned srcID, pseudoSrcId;
+		int pseudoSrcBirthTime;
+		int level;
+
+		bool operator< (const Window& right) const
+		{
+			return minDist > right.minDist;
+		}
+
+		__device__ void calcMinDist()
+		{
+			double wLen = b1 - b0;
+			double xProj = (d0*d0 + wLen*wLen - d1*d1) / (2 * wLen);
+			if (xProj < 0.0) minDist = d0 + pseudoSrcDist;
+			else if (xProj > wLen) minDist = d1 + pseudoSrcDist;
+			else {
+				minDist = sqrt(fabs(d0*d0 - xProj*xProj)) + pseudoSrcDist;
+			}
+		}
+
+		__device__ Vector2D FlatenedSrc() const
+		{
+			Vector2D src2D;
+			double wLen = b1 - b0;
+			src2D.x = (d0*d0 + wLen*wLen - d1*d1) / (2.0 * wLen);
+			src2D.y = sqrt(fabs(d0*d0 - src2D.x*src2D.x));
+			src2D.x += b0;
+			return src2D;
+		}
+	};
+
+	struct PseudoWindow
+	{
+		unsigned vertID;
+		double dist;
+		unsigned srcId, pseudoSrcId;
+		unsigned pseudoBirthTime;
+		unsigned level;
+
+		__device__ bool operator< (const PseudoWindow &right) const {
+			return dist > right.dist;
+		};
+	};
+
+	struct SplitInfo
+	{
+		double dist;
+		double x;
+
+		__device__ SplitInfo() { dist = DBL_MAX; x = DBL_MAX; }
+	};
+
+	struct VertInfo
+	{
+		int birthTime;
+		double dist;
+		int enterEdge;
+
+		__device__ VertInfo() { birthTime = -1; dist = DBL_MAX; enterEdge = -1; }
+	};
+
+	struct GeodesicKeyPoint
+	{
+		bool isVertex;
+		unsigned id;
+		double pos;
+	};
+	
+public:
+	__device__ ICH();
+	__device__ ~ICH();
+
+	__device__ void AssignMesh(Mesh *mesh_);
+	__device__ void AssignBuffers(SplitInfo *splitInfos_, VertInfo *vertInfos_);
+	__device__ void AddSource(unsigned vertId);
+	__device__ void Execute();
+	__device__ void OutputStatisticInfo();
+	//__device__ std::list<GeodesicKeyPoint> BuildGeodesicPathTo(unsigned vertId, unsigned &srcId);
+	__device__ double GetDistanceTo(unsigned vertId);
+
+private:
+	__device__ void Initialize();
+	__device__ void PropagateWindow(const Window &win);
+
+	__device__ void GenSubWinsForPseudoSrc(const PseudoWindow &pseudoWin);
+	__device__ void GenSubWinsForPseudoSrcFromWindow(const PseudoWindow &pseudoWin, unsigned &startEdge, unsigned &endEdge);
+	__device__ void GenSubWinsForPseudoSrcFromPseudoSrc(const PseudoWindow &pseudoWin, unsigned &startEdge, unsigned &endEdge);
+
+	__device__ bool IsValidWindow(const Window &win, bool isLeftChild);
+	__device__ void BuildWindow(const Window &fatherWin,
+		unsigned edge, 
+		double t0, double t1, 
+		const Vector2D &v0, const Vector2D &v1, 
+		Window &win);
+
+	__device__ double Intersect(const Vector2D &v0, const Vector2D &v1, const Vector2D &p0, const Vector2D &p1);
+
+private:
+	// all these fields need to be allocated first (except for the PriorityQueues), 
+	// and then to be assigned into
+	Mesh *mesh;
+	SplitInfo *splitInfos;
+	VertInfo *vertInfos;
+	PriorityQueues< Window > winQ;
+	PriorityQueues< PseudoWindow > pseudoSrcQ;
+	unsigned sourceVert;
+
+	// statistics
+	int numOfWinGen;
+	int maxWinQSize, maxPseudoQSize;
+	
+};
+
+#endif

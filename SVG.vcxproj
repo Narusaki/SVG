@@ -87,6 +87,11 @@
       <Command>echo copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"
 copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     </PostBuildEvent>
+    <CudaCompile />
+    <CudaCompile />
+    <CudaCompile>
+      <GenerateRelocatableDeviceCode>true</GenerateRelocatableDeviceCode>
+    </CudaCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -126,6 +131,12 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
       <Command>echo copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"
 copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     </PostBuildEvent>
+    <CudaCompile />
+    <CudaCompile />
+    <CudaCompile />
+    <CudaCompile>
+      <GenerateRelocatableDeviceCode>true</GenerateRelocatableDeviceCode>
+    </CudaCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -151,14 +162,19 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     </CudaCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <CudaCompile Include="book.cu" />
     <CudaCompile Include="Geometry.cu" />
+    <CudaCompile Include="ICH.cu" />
     <CudaCompile Include="kernel.cu" />
     <CudaCompile Include="Mesh.cu" />
     <CudaCompile Include="SVG.cu" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="book.cuh" />
     <ClInclude Include="Geometry.cuh" />
+    <ClInclude Include="ICH.cuh" />
     <ClInclude Include="Mesh.cuh" />
+    <ClInclude Include="PriorityQueue.cuh" />
     <ClInclude Include="SVG.cuh" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
