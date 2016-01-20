@@ -28,15 +28,17 @@ public:
 private:
 	Mesh *mesh, *d_mesh;
 
+	// priority queues for Windows
 	PQWinItem *d_winPQs;
+	// priority queues for Pseudo Windows
 	PQPseudoWinItem *d_pseudoWinPQs;
 
+	// split info buffer for SplitInfo
 	ICH::SplitInfo *d_splitInfoBuf;
 	ICH::VertInfo *d_vertInfoBuf;
 };
 
 __global__ void constructSVG(Mesh mesh, 
 	SVG::PQWinItem *d_winPQs, SVG::PQPseudoWinItem *d_pseudoWinPQs, 
-	ICH::SplitInfo *d_splitInfoBuf, ICH::VertInfo *d_vertInfoBuf, 
-	int *numOfWinGen, int *maxWinQSize, int *maxPseudoQSize);
+	ICH::SplitInfo *d_splitInfoBuf, ICH::VertInfo *d_vertInfoBuf);
 #endif
