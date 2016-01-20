@@ -17,6 +17,9 @@ int main(int argc, char **argv)
 
 
 	SVG svg;
+	svg.AssignMesh(&mesh, &d_mesh);
+	svg.Allocation();
+	svg.ConstructSVG();
 
 	mesh.clear();
 	d_mesh.clearGPU();

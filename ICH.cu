@@ -27,10 +27,13 @@ __device__ void ICH::AssignMesh(Mesh *mesh_)
 	mesh = mesh_;
 }
 
-__device__ void ICH::AssignBuffers(SplitInfo *splitInfos_, VertInfo *vertInfos_)
+__device__ void ICH::AssignBuffers(SplitInfo *splitInfos_, VertInfo *vertInfos_, 
+	PriorityQueues< Window > winQ_, PriorityQueues< PseudoWindow > pseudoSrcQ_)
 {
 	splitInfos = splitInfos_;
 	vertInfos = vertInfos_;
+	winQ = winQ_;
+	pseudoSrcQ = pseudoSrcQ_;
 }
 
 __device__ void ICH::AddSource(unsigned vertId)
@@ -186,6 +189,26 @@ __device__ double ICH::GetDistanceTo(unsigned vertId)
 	return vertInfos[vertId].dist;
 }
 
+__device__ void ICH::Clear()
+{
+	winQ.clear(); pseudoSrcQ.clear();
+	for (int i = 0; i < mesh->edgeNum; ++i)
+	{
+		splitInfos[i].dist = DBL_MAX;
+		splitInfos[i].x = DBL_MAX;
+	}
+	for (int i = 0; i < mesh->vertNum; ++i)
+	{
+		vertInfos[i].birthTime = -1;
+		vertInfos[i].dist = DBL_MAX;
+		vertInfos[i].enterEdge = -1;
+	}
+	sourceVert = -1;
+	numOfWinGen = 0;
+	maxWinQSize = 0;
+	maxPseudoQSize = 0;
+}
+
 __device__ void ICH::Initialize()
 {
 	int startEdge = mesh->edgeAdjToVert[sourceVert];
@@ -210,7 +233,12 @@ __device__ void ICH::Initialize()
 		vertInfos[opVert].dist = mesh->edges[curEdge].edgeLen;
 		vertInfos[opVert].enterEdge = mesh->edges[curEdge].twinEdge;
 
-		if (mesh->angles[opVert] < 2.0 * PI) continue;
+		if (mesh->angles[opVert] < 2.0 * PI)
+		{
+			curEdge = mesh->edges[curEdge].twinEdge;
+			if (curEdge != -1) curEdge = mesh->edges[curEdge].nextEdge;
+			continue;
+		}
 
 		PseudoWindow pseudoWin;
 		pseudoWin.vertID = opVert; pseudoWin.dist = mesh->edges[curEdge].edgeLen;
@@ -218,7 +246,11 @@ __device__ void ICH::Initialize()
 		pseudoWin.pseudoBirthTime = vertInfos[opVert].birthTime;
 		pseudoWin.level = 0;
 		pseudoSrcQ.push(pseudoWin, pseudoWin.dist);
-	} while (curEdge != startEdge);
+
+		curEdge = mesh->edges[curEdge].twinEdge;
+		if (curEdge != -1) curEdge = mesh->edges[curEdge].nextEdge;
+
+	} while (curEdge != startEdge && curEdge != -1);
 	vertInfos[sourceVert].birthTime = 0;
 	vertInfos[sourceVert].dist = 0.0;
 	vertInfos[sourceVert].enterEdge = -1;
@@ -358,8 +390,13 @@ __device__ void ICH::GenSubWinsForPseudoSrc(const PseudoWindow &pseudoWin)
 	do
 	{
 		unsigned opVert = mesh->edges[curEdge].verts[1];
-		if (mesh->angles[opVert] < 2.0 * PI) continue;
-		if (vertInfos[opVert].dist < pseudoWin.dist + mesh->edges[curEdge].edgeLen) continue;
+		if (mesh->angles[opVert] < 2.0 * PI || 
+			vertInfos[opVert].dist < pseudoWin.dist + mesh->edges[curEdge].edgeLen)
+		{
+			curEdge = mesh->edges[curEdge].twinEdge;
+			if (curEdge != -1) curEdge = mesh->edges[curEdge].nextEdge;
+			continue;
+		}
 
 		vertInfos[opVert].dist = pseudoWin.dist + mesh->edges[curEdge].edgeLen;
 		++vertInfos[opVert].birthTime;
@@ -371,7 +408,10 @@ __device__ void ICH::GenSubWinsForPseudoSrc(const PseudoWindow &pseudoWin)
 		childPseudoWin.pseudoBirthTime = vertInfos[opVert].birthTime;
 		childPseudoWin.level = pseudoWin.level;
 		pseudoSrcQ.push(childPseudoWin, childPseudoWin.dist);
-	} while (curEdge != startEdge);
+
+		curEdge = mesh->edges[curEdge].twinEdge;
+		if (curEdge != -1) curEdge = mesh->edges[curEdge].nextEdge;
+	} while (curEdge != startEdge && curEdge != -1);
 }
 
 __device__ void ICH::GenSubWinsForPseudoSrcFromWindow(const PseudoWindow &pseudoWin, unsigned &startEdge, unsigned &endEdge)

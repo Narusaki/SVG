@@ -66,16 +66,16 @@ public:
 		double dist;
 		double x;
 
-		__device__ SplitInfo() { dist = DBL_MAX; x = DBL_MAX; }
+		__host__ __device__ SplitInfo() { dist = DBL_MAX; x = DBL_MAX; }
 	};
 
 	struct VertInfo
 	{
-		int birthTime;
+		char birthTime;
 		double dist;
 		int enterEdge;
 
-		__device__ VertInfo() { birthTime = -1; dist = DBL_MAX; enterEdge = -1; }
+		__host__ __device__ VertInfo() { birthTime = -1; dist = DBL_MAX; enterEdge = -1; }
 	};
 
 	struct GeodesicKeyPoint
@@ -90,12 +90,14 @@ public:
 	__device__ ~ICH();
 
 	__device__ void AssignMesh(Mesh *mesh_);
-	__device__ void AssignBuffers(SplitInfo *splitInfos_, VertInfo *vertInfos_);
+	__device__ void AssignBuffers(SplitInfo *splitInfos_, VertInfo *vertInfos_, 
+		PriorityQueues< Window > winQ_, PriorityQueues< PseudoWindow > pseudoSrcQ_);
 	__device__ void AddSource(unsigned vertId);
 	__device__ void Execute();
 	__device__ void OutputStatisticInfo();
 	//__device__ std::list<GeodesicKeyPoint> BuildGeodesicPathTo(unsigned vertId, unsigned &srcId);
 	__device__ double GetDistanceTo(unsigned vertId);
+	__device__ void Clear();
 
 private:
 	__device__ void Initialize();
@@ -114,7 +116,7 @@ private:
 
 	__device__ double Intersect(const Vector2D &v0, const Vector2D &v1, const Vector2D &p0, const Vector2D &p1);
 
-private:
+public:
 	// all these fields need to be allocated first (except for the PriorityQueues), 
 	// and then to be assigned into
 	Mesh *mesh;

@@ -111,12 +111,12 @@ bool Mesh::LoadFromFile(const char *fileName)
 		if (curAngle > 1.0) curAngle = 1.0; else if (curAngle < -1.0) curAngle = -1.0;
 		curAngle = acos(curAngle);
 		angles[edges[i].verts[0]] += curAngle;
-
+		/*
 		curAngle = (l0*l0 + l1*l1 - l2*l2) / (2.0 * l0*l1);
 		if (curAngle > 1.0) curAngle = 1.0; else if (curAngle < -1.0) curAngle = -1.0;
 		curAngle = acos(curAngle);
 		angles[edges[i].verts[1]] += curAngle;
-
+		*/
 		edgeAdjToVert[edges[i].verts[0]] = i;
 	}
 
@@ -130,7 +130,7 @@ bool Mesh::copyToGPU(Mesh *d_mesh)
 	d_mesh->vertNum = vertNum;
 	d_mesh->faceNum = faceNum;
 	HANDLE_ERROR(cudaMalloc((void**)&(d_mesh->edges), edgeNum * sizeof(Edge)));
-	HANDLE_ERROR(cudaMalloc((void**)(&d_mesh->angles), vertNum * sizeof(double)));
+	HANDLE_ERROR(cudaMalloc((void**)&(d_mesh->angles), vertNum * sizeof(double)));
 	HANDLE_ERROR(cudaMalloc((void**)&(d_mesh->edgeAdjToVert), vertNum * sizeof(int)));
 
 	HANDLE_ERROR(cudaMemcpy(d_mesh->edges, edges, edgeNum * sizeof(Edge), cudaMemcpyHostToDevice));
