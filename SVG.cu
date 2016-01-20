@@ -11,7 +11,7 @@ __global__ void constructSVG(Mesh mesh,
 	int *numOfWinGen, int *maxWinQSize, int *maxPseudoQSize)
 {
 	int idx = threadIdx.x + blockIdx.x * blockDim.x;
-	if (idx > 0) return;
+	if (idx != 0 && idx != 100) return;
 	int totalThreadNum = blockDim.x * gridDim.x;
 	int vertPerThread = (mesh.vertNum + totalThreadNum - 1) / totalThreadNum;
 
@@ -84,9 +84,9 @@ void SVG::ConstructSVG()
 	constructSVG <<<BLOCK_NUM, THREAD_NUM >>>(*d_mesh, d_winPQs, d_pseudoWinPQs, d_splitInfoBuf, d_vertInfoBuf, 
 		d_numOfWinGen, d_maxWinQSize, d_maxPseudoQSize);
 	// TODO: organize the constructed SVG
-	ICH::VertInfo *vertInfoBuf = new ICH::VertInfo[mesh->vertNum];
+	ICH::VertInfo *vertInfoBuf = new ICH::VertInfo[THREAD_NUM * BLOCK_NUM * mesh->vertNum];
 
-	HANDLE_ERROR(cudaMemcpy(vertInfoBuf, d_vertInfoBuf, mesh->vertNum * sizeof(ICH::VertInfo), cudaMemcpyDeviceToHost));
+	HANDLE_ERROR(cudaMemcpy(vertInfoBuf, d_vertInfoBuf, THREAD_NUM * BLOCK_NUM * mesh->vertNum * sizeof(ICH::VertInfo), cudaMemcpyDeviceToHost));
 	HANDLE_ERROR(cudaMemcpy(&numOfWinGen, d_numOfWinGen, sizeof(int), cudaMemcpyDeviceToHost));
 	HANDLE_ERROR(cudaMemcpy(&maxWinQSize, d_maxWinQSize, sizeof(int), cudaMemcpyDeviceToHost));
 	HANDLE_ERROR(cudaMemcpy(&maxPseudoQSize, d_maxPseudoQSize, sizeof(int), cudaMemcpyDeviceToHost));
@@ -100,15 +100,15 @@ void SVG::ConstructSVG()
 
 	// outputing
 	cout << "Outputing ..." << endl;
-	ofstream output("result.dist");
-	unsigned errCnt = 0;
-	double maxDist = 0.0;
+	ofstream output("result0.dist");
 	for (int i = 0; i < mesh->vertNum; ++i)
-	{
 		output << vertInfoBuf[i].dist << endl;
-	}
 	output.close();
 	
+	output.open("result100.dist");
+	for (int i = 0; i < mesh->vertNum; ++i)
+		output << vertInfoBuf[100*mesh->vertNum+i].dist << endl;
+	output.close();
 
 	delete[] vertInfoBuf;
 }

@@ -5,7 +5,7 @@
 #include "PriorityQueue.cuh"
 #include "ICH.cuh"
 
-#define BLOCK_NUM 2
+#define BLOCK_NUM 1
 #define THREAD_NUM 256
 #define WIN_PQ_SIZE 4096
 #define PSEUDOWIN_PQ_SIZE 4096
