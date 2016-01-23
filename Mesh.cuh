@@ -8,7 +8,20 @@ class Edge
 public:
 	int verts[2];
 	int twinEdge, nextEdge, prevEdge;
+	int faceId;
 	double edgeLen;
+};
+
+class Vertex
+{
+public:
+	Vector3D pos;
+};
+
+class Face
+{
+public:
+	unsigned edges[3];
 };
 
 class Mesh
@@ -25,9 +38,13 @@ public:
 public:
 	Edge *edges;
 	int edgeNum;
+
+	Vertex *verts;
 	double *angles;
 	int vertNum;
 	int *edgeAdjToVert;
+
+	Face *faces;
 	int faceNum;
 };
 #endif

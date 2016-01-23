@@ -14,6 +14,7 @@ __device__ ICH::ICH()
 	numOfWinGen = 0;
 	maxWinQSize = 0;
 	maxPseudoQSize = 0;
+	totalCalcVertNum = 0;
 	return;
 }
 
@@ -41,7 +42,19 @@ __device__ void ICH::AddSource(unsigned vertId)
 	sourceVert = vertId;
 }
 
-__device__ void ICH::Execute()
+__device__ void ICH::AddSource(unsigned faceId, Vector3D pos)
+{
+	sourcePointFace = faceId;
+	sourcePointPos = pos;
+}
+
+__device__ void ICH::AddFacesKeptWindow(unsigned faceId)
+{
+	if (keptFacesIdx == keptFacesSize) return;
+	keptFaces[keptFacesIdx++] = faceId;
+}
+
+__device__ void ICH::Execute(int totalCalcVertNum_)
 {
 	// Initialize
 	Initialize();
@@ -54,11 +67,11 @@ __device__ void ICH::Execute()
 		maxWinQSize = max(maxWinQSize, winQ.size());
 		maxPseudoQSize = max(maxPseudoQSize, pseudoSrcQ.size());
 
-		while (!winQ.empty() &&
+		while (!winQ.empty() && winQ.top().pseudoSrcId < mesh->vertNum && 
 			winQ.top().pseudoSrcBirthTime != vertInfos[winQ.top().pseudoSrcId].birthTime)
 			winQ.pop();
 
-		while (!pseudoSrcQ.empty() &&
+		while (!pseudoSrcQ.empty() && winQ.top().pseudoSrcId < mesh->vertNum && 
 			pseudoSrcQ.top().pseudoBirthTime != vertInfos[pseudoSrcQ.top().vertID].birthTime)
 			pseudoSrcQ.pop();
 
@@ -66,6 +79,21 @@ __device__ void ICH::Execute()
 		{
 			Window win = winQ.top(); winQ.pop();
 			if (win.level > mesh->faceNum) continue;
+			// save windows for arbitrary dst geodesic construction
+			unsigned twinEdge = mesh->edges[win.edgeID].twinEdge;
+			if (twinEdge != -1)
+			{
+				bool found = false;
+				for (int i = 0; i < keptFacesIdx; ++i)
+				{
+					if (keptFaces[i] == mesh->edges[twinEdge].faceId)
+					{
+						found = true;
+						break;
+					}
+				}
+				if (found) storedWindows[storedWindowsIdx++] = win;
+			}
 			PropagateWindow(win);
 		}
 		else if (!pseudoSrcQ.empty() && (winQ.empty() || winQ.top().minDist >= pseudoSrcQ.top().dist))
@@ -74,6 +102,9 @@ __device__ void ICH::Execute()
 			if (pseudoWin.level >= mesh->faceNum) continue;
 			GenSubWinsForPseudoSrc(pseudoWin);
 		}
+
+		if (totalCalcVertNum_ != -1 && totalCalcVertNum >= totalCalcVertNum_)
+			break;
 	}
 }
 
@@ -86,48 +117,274 @@ __device__ void ICH::OutputStatisticInfo()
 	*/
 }
 
-/*
-list<ICH::GeodesicKeyPoint> ICH::BuildGeodesicPathTo(unsigned vertId, unsigned &srcId)
+__device__ void ICH::BuildGeodesicPathTo(unsigned faceId, Vector3D pos, unsigned &srcId, 
+	unsigned &nextToSrcEdge, double &nextToSrcX, unsigned &nextToDstEdge, double &nextToDstX)
+{
+	// find the window provide the nearest distance
+	nextToSrcEdge = -1; nextToDstEdge = -1;
+	double minDist = DBL_MAX;
+	Window minWin; double xInter; Vector2D pos2D;
+	unsigned dstVert = -1;
+	bool throughAWindow = true;
+
+	// traverse the surrounded windows
+	for (int i = 0; i < storedWindowsIdx; ++i)
+	{
+		unsigned twinEdge = mesh->edges[storedWindows[i].edgeID].twinEdge;
+		if (twinEdge == -1) continue;
+		if (mesh->edges[twinEdge].faceId != faceId) continue;
+
+		unsigned e0 = twinEdge;
+		unsigned e1 = mesh->edges[e0].nextEdge;
+		unsigned e2 = mesh->edges[e1].nextEdge;
+
+		double l0 = mesh->edges[e0].edgeLen;
+		double l1 = mesh->edges[e1].edgeLen;
+		double l2 = mesh->edges[e2].edgeLen;
+
+		unsigned v0 = mesh->edges[e0].verts[1];
+		unsigned v1 = mesh->edges[e0].verts[0];
+		unsigned v2 = mesh->edges[e1].verts[1];
+
+		Vector2D p0(0.0, 0.0), p1(l0, 0.0), p2;
+		p2.x = (l1*l1 + l0*l0 - l2*l2) / (2.0*l0);
+		p2.y = -sqrt(fabs(l1*l1 - p2.x*p2.x));
+
+		// window's pseudo source's 2D planar coordinate
+		Vector2D src2D = storedWindows[i].FlatenedSrc();
+
+		// dst point's centroid coordinates
+		double a = (pos - mesh->verts[v0].pos).length();
+		double b = (pos - mesh->verts[v1].pos).length();
+		double c = (pos - mesh->verts[v2].pos).length();
+
+		double s0 = (b + c + l2) / 2.0;
+		double s1 = (a + c + l1) / 2.0;
+		double s2 = (a + b + l0) / 2.0;
+
+		s0 = sqrt(fabs(s0 * (s0 - b) * (s0 - c) * (s0 - l2)));
+		s1 = sqrt(fabs(s1 * (s1 - a) * (s1 - c) * (s1 - l1)));
+		s2 = sqrt(fabs(s2 * (s2 - a) * (s2 - b) * (s2 - l0)));
+
+		double w0 = s0 / (s0 + s1 + s2);
+		double w1 = s1 / (s0 + s1 + s2);
+		double w2 = s2 / (s0 + s1 + s2);
+
+		Vector2D curPos2D = w0 * p0 + w1 * p1 + w2 * p2;
+
+		// calculate the shortest distance
+		double curXInter = src2D.x - (curPos2D.x - src2D.x) / (curPos2D.y - src2D.y) * src2D.y;
+		double curMinDist = DBL_MAX;
+		if (curXInter > storedWindows[i].b0 && curXInter < storedWindows[i].b1)
+			curMinDist = (curPos2D - src2D).length() + storedWindows[i].pseudoSrcDist;
+		else if (curXInter <= storedWindows[i].b0)
+			curMinDist = (curPos2D - Vector2D(storedWindows[i].b0, 0.0)).length() + storedWindows[i].d0 + storedWindows[i].pseudoSrcDist;
+		else
+			curMinDist = (curPos2D - Vector2D(storedWindows[i].b1, 0.0)).length() + storedWindows[i].d1 + storedWindows[i].pseudoSrcDist;
+
+		if (curMinDist < minDist)
+		{
+			minDist = curMinDist;
+			minWin = storedWindows[i];
+			xInter = curXInter;
+			pos2D = curPos2D;
+		}
+	}
+
+	// traverse the surrounded vertices
+	for (int i = 0; i < 3; ++i)
+	{
+		unsigned opVert = mesh->edges[mesh->faces[faceId].edges[i]].verts[0];
+		if (mesh->angles[opVert] < 2.0 * PI) continue;
+
+		double curDist = (pos - mesh->verts[opVert].pos).length() + vertInfos[opVert].dist;
+		if (curDist < minDist)
+		{
+			throughAWindow = false;
+			dstVert = opVert;
+			minDist = curDist;
+		}
+	}
+
+	if (!throughAWindow)
+	{
+		BuildGeodesicPathTo(dstVert, srcId, nextToSrcEdge, nextToSrcX, nextToDstEdge, nextToDstX);
+		GeodesicKeyPoint gkp;
+		gkp.isVertex = true; gkp.id = dstVert;
+		nextToDstEdge = mesh->edgeAdjToVert[gkp.id]; nextToDstX = 0.0;
+	}
+	else
+	{
+		// next key point is on an edge
+		GeodesicKeyPoint gkp;
+		gkp.isVertex = false;
+		gkp.id = mesh->edges[minWin.edgeID].twinEdge;
+		gkp.pos = mesh->edges[gkp.id].edgeLen - xInter;
+
+		nextToDstEdge = gkp.id; nextToDstX = gkp.pos;
+
+		unsigned enterEdge = gkp.id;
+		unsigned opVert = mesh->edges[gkp.id].twinEdge;
+		opVert = mesh->edges[mesh->edges[opVert].nextEdge].verts[1];
+		double l0 = mesh->edges[gkp.id].edgeLen;
+		double l1 = mesh->edges[mesh->edges[gkp.id].nextEdge].edgeLen;
+		double l2 = mesh->edges[mesh->edges[mesh->edges[gkp.id].nextEdge].nextEdge].edgeLen;
+
+		Vector2D lastPoint = pos2D, curPoint;
+		curPoint.x = l0 - gkp.pos; curPoint.y = 0.0;
+
+		while (minWin.pseudoSrcId < mesh->vertNum && opVert != minWin.pseudoSrcId ||
+			minWin.pseudoSrcId >= mesh->vertNum &&
+			mesh->edges[mesh->edges[gkp.id].twinEdge].faceId != sourcePointFace)
+		{
+			// trace back
+			unsigned e0 = mesh->edges[gkp.id].twinEdge;
+			unsigned e1 = mesh->edges[e0].nextEdge;
+			unsigned e2 = mesh->edges[e1].nextEdge;
+			double l0 = mesh->edges[e0].edgeLen;
+			double l1 = mesh->edges[e1].edgeLen;
+			double l2 = mesh->edges[e2].edgeLen;
+
+			Vector2D opVert2D;
+			opVert2D.x = (l0*l0 + l2*l2 - l1*l1) / (2.0*l0);
+			opVert2D.y = sqrt(fabs(l2*l2 - opVert2D.x*opVert2D.x));
+
+			if (toLeft(opVert2D, lastPoint, curPoint))
+			{
+				Vector2D p0, p1;
+				p0.x = (l2*l2 + l1*l1 - l0*l0) / (2.0*l1);
+				p0.y = -sqrt(fabs(l2*l2 - p0.x*p0.x));
+				p1.x = l1; p1.y = 0.0;
+				Vector2D newlastPoint = gkp.pos / l0 * p0 + (1.0 - gkp.pos / l0) * p1;
+
+				gkp.pos = Intersect(lastPoint, curPoint, Vector2D(l0, 0.0), opVert2D);
+				gkp.pos = (1.0 - gkp.pos) * l1;
+				gkp.id = e1;
+				curPoint.x = l1 - gkp.pos; curPoint.y = 0.0;
+				lastPoint = newlastPoint;
+			}
+			else
+			{
+				Vector2D p0, p1;
+				p0.x = 0.0; p0.y = 0.0;
+				p1.x = (l2*l2 + l0*l0 - l1*l1) / (2.0*l2);
+				p1.y = -sqrt(fabs(l0*l0 - p1.x*p1.x));
+				Vector2D newlastPoint = gkp.pos / l0 * p0 + (1.0 - gkp.pos / l0) * p1;
+
+				gkp.pos = Intersect(lastPoint, curPoint, opVert2D, Vector2D(0.0, 0.0));
+				gkp.pos = (1.0 - gkp.pos) * l2;
+				gkp.id = e2;
+				curPoint.x = l2 - gkp.pos; curPoint.y = 0.0;
+				lastPoint = newlastPoint;
+			}
+			nextToSrcEdge = gkp.id; nextToSrcX = gkp.pos;
+
+			opVert = mesh->edges[gkp.id].twinEdge;
+			opVert = mesh->edges[mesh->edges[opVert].nextEdge].verts[1];
+		}
+
+		if (minWin.pseudoSrcId >= mesh->vertNum) {
+			dstVert = minWin.pseudoSrcId;
+			srcId = dstVert;
+		}
+		else if (vertInfos[opVert].dist != 0.0)
+		{
+			gkp.isVertex = true;
+			gkp.id = opVert;
+			nextToSrcEdge = mesh->edgeAdjToVert[gkp.id]; nextToSrcX = 0.0;
+			dstVert = opVert;
+
+			unsigned nextToDstEdge_; double nextToDstX_;
+			BuildGeodesicPathTo(opVert, srcId, nextToSrcEdge, nextToSrcX, nextToDstEdge_, nextToDstX_);
+		}
+		srcId = minWin.srcID;
+	}
+}
+
+__device__ void ICH::BuildGeodesicPathTo(unsigned vertId, unsigned &srcId, 
+	unsigned &nextToSrcEdge, double &nextToSrcX, unsigned &nextToDstEdge, double &nextToDstX)
 {
 	// TODO: build geodesic path from vertex vertId to source
-	list < GeodesicKeyPoint > path;
+	nextToSrcEdge = -1; nextToDstEdge = -1;
 	unsigned curVert = vertId;
 	GeodesicKeyPoint gkp;
 	while (vertInfos[curVert].dist != 0.0)
 	{
 		unsigned enterEdge = vertInfos[curVert].enterEdge;
-		if (mesh->edges[enterEdge].m_iVertex[0] == curVert)
+		if (enterEdge == -1)
+		{
+			// trace back to an arbitrary point
+			double curPlanarDist = (sourcePointPos - mesh->verts[curVert].pos).length();
+			srcId = mesh->vertNum;
+			if (nextToDstEdge == -1)
+			{
+				nextToDstEdge = mesh->edgeAdjToVert[curVert];
+				nextToDstX = 0.0;
+			}
+			else
+			{
+				nextToSrcEdge = mesh->edgeAdjToVert[curVert];
+				nextToSrcX = 0.0;
+			}
+			return;
+		}
+		else if (mesh->edges[enterEdge].verts[0] == curVert)
 		{
 			// next key point is still a vertex
-			gkp.isVertex = true;
-			gkp.id = mesh->edges[enterEdge].m_iVertex[1];
-			path.push_back(gkp);
-			curVert = gkp.id;
+			unsigned nextVert = mesh->edges[enterEdge].verts[1];
+			if (vertInfos[nextVert].dist != 0.0)
+			{
+				gkp.isVertex = true;
+				gkp.id = nextVert;
+				
+				if (nextToDstEdge == -1)
+				{
+					nextToDstEdge = mesh->edges[enterEdge].nextEdge;
+					nextToDstX = 0.0;
+				}
+				else
+				{
+					nextToSrcEdge = mesh->edges[enterEdge].nextEdge;
+					nextToSrcX = 0.0;
+				}
+			}
+			curVert = nextVert;
 		}
 		else
 		{
 			// next key point is on an edge
 			gkp.isVertex = false;
 			gkp.id = enterEdge; gkp.pos = splitInfos[enterEdge].x;
-			path.push_back(gkp);
+
+			if (nextToDstEdge == -1)
+			{
+				nextToDstEdge = gkp.id; nextToDstX = gkp.pos;
+			}
+			else
+			{
+				nextToSrcEdge = gkp.id; nextToSrcX = gkp.pos;
+			}
 
 			unsigned opVert = mesh->edges[gkp.id].twinEdge;
-			opVert = mesh->edges[mesh->edges[opVert].nextEdge].m_iVertex[1];
+			opVert = mesh->edges[mesh->edges[opVert].nextEdge].verts[1];
 			double l0 = mesh->edges[gkp.id].edgeLen;
 			double l1 = mesh->edges[mesh->edges[gkp.id].nextEdge].edgeLen;
 			double l2 = mesh->edges[mesh->edges[mesh->edges[gkp.id].nextEdge].nextEdge].edgeLen;
-			
+
 			Vector2D lastPoint, curPoint;
 			lastPoint.x = (l1*l1 + l0*l0 - l2*l2) / (2.0*l0);
 			lastPoint.y = -sqrt(fabs(l1*l1 - lastPoint.x*lastPoint.x));
 			curPoint.x = l0 - gkp.pos; curPoint.y = 0.0;
 
-			while (opVert != splitInfos[enterEdge].pseudoSrcId)
+			while (splitInfos[enterEdge].pseudoSrcId < mesh->vertNum &&
+				opVert != splitInfos[enterEdge].pseudoSrcId ||
+				splitInfos[enterEdge].pseudoSrcId >= mesh->vertNum &&
+				mesh->edges[mesh->edges[gkp.id].twinEdge].faceId != sourcePointFace)
 			{
 				// trace back
 				unsigned e0 = mesh->edges[gkp.id].twinEdge;
-				unsigned e1 = mesh->edges[e0].nextEdge;
-				unsigned e2 = mesh->edges[e1].nextEdge;
+				unsigned e1 = mesh->edges[e0].twinEdge;
+				unsigned e2 = mesh->edges[e1].twinEdge;
 				double l0 = mesh->edges[e0].edgeLen;
 				double l1 = mesh->edges[e1].edgeLen;
 				double l2 = mesh->edges[e2].edgeLen;
@@ -164,25 +421,27 @@ list<ICH::GeodesicKeyPoint> ICH::BuildGeodesicPathTo(unsigned vertId, unsigned &
 					curPoint.x = l2 - gkp.pos; curPoint.y = 0.0;
 					lastPoint = newlastPoint;
 				}
-				path.push_back(gkp);
+				nextToSrcEdge = gkp.id; nextToSrcX = gkp.pos;
 
 				opVert = mesh->edges[gkp.id].twinEdge;
-				opVert = mesh->edges[mesh->edges[opVert].nextEdge].m_iVertex[1];
+				opVert = mesh->edges[mesh->edges[opVert].nextEdge].verts[1];
 			}
 
+			if (splitInfos[enterEdge].pseudoSrcId >= mesh->vertNum) {
+				curVert = splitInfos[enterEdge].pseudoSrcId;
+				break;
+			}
 			if (vertInfos[opVert].dist != 0.0)
 			{
 				gkp.isVertex = true;
 				gkp.id = opVert;
-				path.push_back(gkp);
+				nextToSrcEdge = mesh->edgeAdjToVert[gkp.id]; nextToSrcX = 0.0;
 			}
 			curVert = opVert;
 		}
 	}
 	srcId = curVert;
-	return path;
 }
-*/
 
 __device__ double ICH::GetDistanceTo(unsigned vertId)
 {
@@ -196,6 +455,7 @@ __device__ void ICH::Clear()
 	{
 		splitInfos[i].dist = DBL_MAX;
 		splitInfos[i].x = DBL_MAX;
+		splitInfos[i].pseudoSrcId = -1;
 	}
 	for (int i = 0; i < mesh->vertNum; ++i)
 	{
@@ -254,6 +514,36 @@ __device__ void ICH::Initialize()
 	vertInfos[sourceVert].birthTime = 0;
 	vertInfos[sourceVert].dist = 0.0;
 	vertInfos[sourceVert].enterEdge = -1;
+
+
+	for (int j = 0; j < 3; ++j)
+	{
+		unsigned opEdge = mesh->faces[sourcePointFace].edges[j];
+		Window win;
+		win.edgeID = opEdge;
+		win.b0 = 0.0; win.b1 = mesh->edges[opEdge].edgeLen;
+		win.d0 = (sourcePointPos - mesh->verts[mesh->edges[opEdge].verts[0]].pos).length();
+		win.d1 = (sourcePointPos - mesh->verts[mesh->edges[opEdge].verts[1]].pos).length();
+		win.pseudoSrcDist = 0.0; win.calcMinDist();
+		win.srcID = mesh->vertNum; win.pseudoSrcId = win.srcID;
+		win.pseudoSrcBirthTime = 0; win.level = 0;
+		winQ.push(win, win.minDist);
+
+		unsigned opVert = mesh->edges[opEdge].verts[0];
+		vertInfos[opVert].birthTime = 0;
+		vertInfos[opVert].dist = (sourcePointPos - mesh->verts[opVert].pos).length();
+		vertInfos[opVert].enterEdge = -1;
+
+		if (mesh->angles[opVert] < 2.0 * PI) continue;
+
+		PseudoWindow pseudoWin;
+		pseudoWin.vertID = opVert;
+		pseudoWin.dist = (mesh->verts[opVert].pos - sourcePointPos).length();
+		pseudoWin.srcId = win.srcID; pseudoWin.pseudoSrcId = win.srcID;
+		pseudoWin.pseudoBirthTime = vertInfos[opVert].birthTime;
+		pseudoWin.level = 0;
+		pseudoSrcQ.push(pseudoWin, pseudoWin.dist);
+	}
 }
 
 __device__ void ICH::PropagateWindow(const Window &win)
@@ -310,10 +600,14 @@ __device__ void ICH::PropagateWindow(const Window &win)
 		else
 		{
 			splitInfos[e0].dist = directDist + win.pseudoSrcDist;
+			splitInfos[e0].pseudoSrcId = win.pseudoSrcId;
 			splitInfos[e0].x = l0 - interX;
 
 			if (directDist + win.pseudoSrcDist < vertInfos[opVert].dist)
 			{
+				if (vertInfos[opVert].dist == DBL_MAX)
+					++totalCalcVertNum;
+
 				++vertInfos[opVert].birthTime;
 				vertInfos[opVert].dist = directDist + win.pseudoSrcDist;
 				vertInfos[opVert].enterEdge = e0;
@@ -362,12 +656,17 @@ __device__ void ICH::GenSubWinsForPseudoSrc(const PseudoWindow &pseudoWin)
 	unsigned startEdge, endEdge;
 	if (mesh->edges[vertInfos[pseudoWin.vertID].enterEdge].verts[0] == pseudoWin.vertID)
 		GenSubWinsForPseudoSrcFromPseudoSrc(pseudoWin, startEdge, endEdge);
+	else if (vertInfos[pseudoWin.vertID].enterEdge == -1 && vertInfos[pseudoWin.vertID].birthTime != -1)
+	{
+		startEdge = mesh->edgeAdjToVert[pseudoWin.vertID];
+		endEdge = startEdge;
+	}
 	else if (mesh->edges[mesh->edges[vertInfos[pseudoWin.vertID].enterEdge].nextEdge].verts[1] == pseudoWin.vertID)
 		GenSubWinsForPseudoSrcFromWindow(pseudoWin, startEdge, endEdge);
 	else assert(false);
 
 	// generate windows
-	while (startEdge != endEdge)
+	do
 	{
 		Window win;
 		win.edgeID = mesh->edges[startEdge].nextEdge;
@@ -382,7 +681,7 @@ __device__ void ICH::GenSubWinsForPseudoSrc(const PseudoWindow &pseudoWin)
 		++numOfWinGen;
 
 		startEdge = mesh->edges[mesh->edges[mesh->edges[startEdge].nextEdge].nextEdge].twinEdge;
-	}
+	} while (startEdge != endEdge);
 
 	// generate adjacent pseudo sources
 	startEdge = mesh->edgeAdjToVert[pseudoWin.vertID];
@@ -397,6 +696,9 @@ __device__ void ICH::GenSubWinsForPseudoSrc(const PseudoWindow &pseudoWin)
 			if (curEdge != -1) curEdge = mesh->edges[curEdge].nextEdge;
 			continue;
 		}
+
+		if (vertInfos[opVert].dist == DBL_MAX)
+			++totalCalcVertNum;
 
 		vertInfos[opVert].dist = pseudoWin.dist + mesh->edges[curEdge].edgeLen;
 		++vertInfos[opVert].birthTime;

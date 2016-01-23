@@ -65,8 +65,9 @@ public:
 	{
 		double dist;
 		double x;
+		unsigned pseudoSrcId;
 
-		__host__ __device__ SplitInfo() { dist = DBL_MAX; x = DBL_MAX; }
+		__host__ __device__ SplitInfo() { dist = DBL_MAX; x = DBL_MAX; pseudoSrcId = -1; }
 	};
 
 	struct VertInfo
@@ -93,9 +94,14 @@ public:
 	__device__ void AssignBuffers(SplitInfo *splitInfos_, VertInfo *vertInfos_, 
 		PriorityQueues< Window > winQ_, PriorityQueues< PseudoWindow > pseudoSrcQ_);
 	__device__ void AddSource(unsigned vertId);
-	__device__ void Execute();
+	__device__ void AddSource(unsigned faceId, Vector3D pos);
+	__device__ void AddFacesKeptWindow(unsigned faceId);
+	__device__ void Execute(int totalCalcVertNum_ = -1);
 	__device__ void OutputStatisticInfo();
-	//__device__ std::list<GeodesicKeyPoint> BuildGeodesicPathTo(unsigned vertId, unsigned &srcId);
+	__device__ void BuildGeodesicPathTo(unsigned vertId, unsigned &srcId, 
+		unsigned &nextToSrcEdge, double &nextToSrcX, unsigned &nextToDstEdge, double &nextToDstX);
+	__device__ void BuildGeodesicPathTo(unsigned faceId, Vector3D pos, unsigned &srcId, 
+		unsigned &nextToSrcEdge, double &nextToSrcX, unsigned &nextToDstEdge, double &nextToDstX);
 	__device__ double GetDistanceTo(unsigned vertId);
 	__device__ void Clear();
 
@@ -125,11 +131,15 @@ public:
 	PriorityQueues< Window > winQ;
 	PriorityQueues< PseudoWindow > pseudoSrcQ;
 	unsigned sourceVert;
+	unsigned sourcePointFace; Vector3D sourcePointPos;
+
+	Window *storedWindows; unsigned storedWindowsIdx; unsigned storedWindowsSize;
+	unsigned *keptFaces; unsigned keptFacesIdx; unsigned keptFacesSize;
 
 	// statistics
 	int numOfWinGen;
 	int maxWinQSize, maxPseudoQSize;
-	
+	int totalCalcVertNum;
 };
 
 #endif

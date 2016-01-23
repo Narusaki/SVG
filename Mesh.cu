@@ -32,10 +32,10 @@ bool Mesh::LoadFromFile(const char *fileName)
 
 	string curLine;
 	char t;
-	Vector3D point;
+	Vertex point;
 	unsigned v0, v1, v2;
 	stringstream sin;
-	vector<Vector3D> vertsVec;
+	vector<Vertex> vertsVec;
 	vector<int> facesVec;
 	vector<Edge> edgesVec;
 
@@ -47,7 +47,7 @@ bool Mesh::LoadFromFile(const char *fileName)
 			if (curLine[1] == ' ' || curLine[1] == '\t')
 			{
 				sin << curLine;
-				sin >> t >> point.x >> point.y >> point.z;
+				sin >> t >> point.pos.x >> point.pos.y >> point.pos.z;
 				vertsVec.push_back(point);
 			}
 		}
@@ -70,9 +70,10 @@ bool Mesh::LoadFromFile(const char *fileName)
 		{
 			int v0 = facesVec[i + j], v1 = facesVec[i + (j + 1) % 3];
 			edgesVec[edgeIdx].verts[0] = v0; edgesVec[edgeIdx].verts[1] = v1;
-			edgesVec[edgeIdx].edgeLen = (vertsVec[v0] - vertsVec[v1]).length();
+			edgesVec[edgeIdx].edgeLen = (vertsVec[v0].pos - vertsVec[v1].pos).length();
 			edgesVec[edgeIdx].nextEdge = i + (j + 1) % 3;
 			edgesVec[edgeIdx].prevEdge = i + (j + 2) % 3;
+			edgesVec[edgeIdx].faceId = i / 3;
 
 			if (v0 > v1) std::swap(v0, v1);
 			auto iter = verts2edge.find(make_pair(v0, v1));
@@ -94,12 +95,16 @@ bool Mesh::LoadFromFile(const char *fileName)
 	copy(edgesVec.begin(), edgesVec.end(), edges);
 
 	vertNum = vertsVec.size();
-	angles = new double[vertNum];
-	memset(angles, 0, vertNum * sizeof(double));
+	verts = new Vertex[vertNum];
+	copy(vertsVec.begin(), vertsVec.end(), verts);
 
+	angles = new double[vertNum];
 	edgeAdjToVert = new int[vertNum];
 
+	memset(angles, 0, vertNum * sizeof(double));
+
 	faceNum = facesVec.size() / 3;
+	faces = new Face[faceNum];
 
 	for (int i = 0; i < edgeNum; ++i)
 	{
@@ -120,6 +125,13 @@ bool Mesh::LoadFromFile(const char *fileName)
 		edgeAdjToVert[edges[i].verts[0]] = i;
 	}
 
+	for (int i = 0; i < faceNum; ++i)
+	{
+		faces[i].edges[0] = i * 3 + 0;
+		faces[i].edges[1] = i * 3 + 1;
+		faces[i].edges[2] = i * 3 + 2;
+	}
+
 	return true;
 }
 
@@ -132,10 +144,14 @@ bool Mesh::copyToGPU(Mesh *d_mesh)
 	HANDLE_ERROR(cudaMalloc((void**)&(d_mesh->edges), edgeNum * sizeof(Edge)));
 	HANDLE_ERROR(cudaMalloc((void**)&(d_mesh->angles), vertNum * sizeof(double)));
 	HANDLE_ERROR(cudaMalloc((void**)&(d_mesh->edgeAdjToVert), vertNum * sizeof(int)));
+	HANDLE_ERROR(cudaMalloc((void**)&(d_mesh->verts), vertNum * sizeof(Vertex)));
+	HANDLE_ERROR(cudaMalloc((void**)&(d_mesh->faces), faceNum * sizeof(Face)));
 
 	HANDLE_ERROR(cudaMemcpy(d_mesh->edges, edges, edgeNum * sizeof(Edge), cudaMemcpyHostToDevice));
 	HANDLE_ERROR(cudaMemcpy(d_mesh->angles, angles, vertNum * sizeof(double), cudaMemcpyHostToDevice));
 	HANDLE_ERROR(cudaMemcpy(d_mesh->edgeAdjToVert, edgeAdjToVert, vertNum * sizeof(int), cudaMemcpyHostToDevice));
+	HANDLE_ERROR(cudaMemcpy(d_mesh->verts, verts, vertNum * sizeof(Vertex), cudaMemcpyHostToDevice));
+	HANDLE_ERROR(cudaMemcpy(d_mesh->faces, faces, faceNum * sizeof(Face), cudaMemcpyHostToDevice));
 	return true;
 }
 
@@ -144,6 +160,8 @@ void Mesh::clear()
 	if (edges) delete[] edges;
 	if (angles) delete[] angles;
 	if (edgeAdjToVert) delete[] edgeAdjToVert;
+	if (verts) delete[] verts;
+	if (faces) delete[] faces;
 
 	edgeNum = 0; vertNum = 0; faceNum = 0;
 }
@@ -153,5 +171,7 @@ void Mesh::clearGPU()
 	HANDLE_ERROR(cudaFree(edges));
 	HANDLE_ERROR(cudaFree(angles));
 	HANDLE_ERROR(cudaFree(edgeAdjToVert));
+	HANDLE_ERROR(cudaFree(verts));
+	HANDLE_ERROR(cudaFree(faces));
 	edgeNum = 0; vertNum = 0; faceNum = 0;
 }
