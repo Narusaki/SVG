@@ -3,7 +3,7 @@
 
 #include "Geometry.cuh"
 
-class Edge
+class Edge	//
 {
 public:
 	int verts[2];
@@ -16,11 +16,16 @@ class Vertex
 {
 public:
 	Vector3D pos;
+	double angle;
+	int firstEdge;
+
+	Vertex() { angle = 0.0; firstEdge = -1; }
 };
 
 class Face
 {
 public:
+	unsigned verts[3];
 	unsigned edges[3];
 };
 
@@ -40,9 +45,7 @@ public:
 	int edgeNum;
 
 	Vertex *verts;
-	double *angles;
 	int vertNum;
-	int *edgeAdjToVert;
 
 	Face *faces;
 	int faceNum;

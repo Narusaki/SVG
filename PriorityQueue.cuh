@@ -16,7 +16,8 @@ public:
 	};
 
 public:
-	__device__ PriorityQueues();
+	__device__ PriorityQueues() { maxSize = 0; };
+	__device__ PriorityQueues(int maxSize_) { maxSize = maxSize_; };
 	__device__ ~PriorityQueues();
 	__device__ void AssignMemory(PQItem *d_pqs_);
 
@@ -27,19 +28,11 @@ public:
 	__device__ void clear();
 	__device__ int size();
 
-	__device__ int GetPQNum() const { return pqNum; }
-	__device__ int GetMaxSizePerPQ() const { return maxSizePerPQ; }
-
 private:
 	PQItem *d_pqs;
 	int tail;
+	int maxSize;
 };
-
-template <typename T>
-__device__ PriorityQueues<T>::PriorityQueues()
-{
-
-}
 
 template <typename T>
 __device__ PriorityQueues<T>::~PriorityQueues()
@@ -56,6 +49,7 @@ __device__ void PriorityQueues<T>::AssignMemory(PQItem *d_pqs_)
 template <typename T>
 __device__ void PriorityQueues<T>::push(T item, double key)
 {
+	if (tail - 1 >= maxSize) return;
 	++tail;
 
 	int curIdx = tail - 1;

@@ -12,7 +12,7 @@
 // This class is exported from the ICH.dll
 class ICH {
 public:
-	struct Window
+	struct Window	// 68 bytes
 	{
 		unsigned edgeID;
 		double b0, b1, d0, d1;
@@ -48,7 +48,7 @@ public:
 		}
 	};
 
-	struct PseudoWindow
+	struct PseudoWindow	// 28 bytes
 	{
 		unsigned vertID;
 		double dist;
@@ -61,7 +61,7 @@ public:
 		};
 	};
 
-	struct SplitInfo
+	struct SplitInfo // 20 bytes
 	{
 		double dist;
 		double x;
@@ -70,7 +70,7 @@ public:
 		__host__ __device__ SplitInfo() { dist = DBL_MAX; x = DBL_MAX; pseudoSrcId = -1; }
 	};
 
-	struct VertInfo
+	struct VertInfo	// 13 bytes
 	{
 		char birthTime;
 		double dist;
@@ -92,7 +92,8 @@ public:
 
 	__device__ void AssignMesh(Mesh *mesh_);
 	__device__ void AssignBuffers(SplitInfo *splitInfos_, VertInfo *vertInfos_, 
-		PriorityQueues< Window > winQ_, PriorityQueues< PseudoWindow > pseudoSrcQ_);
+		PriorityQueues< Window > winQ_, PriorityQueues< PseudoWindow > pseudoSrcQ_, 
+		Window* storedWindows_, unsigned *keptFaces_);
 	__device__ void AddSource(unsigned vertId);
 	__device__ void AddSource(unsigned faceId, Vector3D pos);
 	__device__ void AddFacesKeptWindow(unsigned faceId);

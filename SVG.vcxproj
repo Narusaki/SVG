@@ -165,6 +165,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     <CudaCompile Include="book.cu" />
     <CudaCompile Include="Geometry.cu" />
     <CudaCompile Include="ICH.cu" />
+    <CudaCompile Include="InitialValueGeodesic.cu" />
     <CudaCompile Include="kernel.cu" />
     <CudaCompile Include="Mesh.cu" />
     <CudaCompile Include="SVG.cu" />
@@ -173,6 +174,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     <ClInclude Include="book.cuh" />
     <ClInclude Include="Geometry.cuh" />
     <ClInclude Include="ICH.cuh" />
+    <ClInclude Include="InitialValueGeodesic.cuh" />
     <ClInclude Include="Mesh.cuh" />
     <ClInclude Include="PriorityQueue.cuh" />
     <ClInclude Include="SVG.cuh" />
