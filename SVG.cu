@@ -6,11 +6,10 @@
 
 using namespace std;
 
-__global__ void constructSVG(Mesh mesh,
+__global__ void constructSVG(Mesh mesh, int K, 
 	SVG::PQWinItem *d_winPQs, SVG::PQPseudoWinItem *d_pseudoWinPQs,
 	ICH::SplitInfo *d_splitInfoBuf, ICH::VertInfo *d_vertInfoBuf, 
-	ICH::Window *d_storedWindowsBuf, unsigned *d_keptFacesBuf,
-	InitialValueGeodesic::GeodesicKeyPoint *d_dstPoints)
+	ICH::Window *d_storedWindowsBuf, unsigned *d_keptFacesBuf)
 {
 	int idx = threadIdx.x + blockIdx.x * blockDim.x;
 	int totalThreadNum = blockDim.x * gridDim.x;
@@ -35,13 +34,10 @@ __global__ void constructSVG(Mesh mesh,
 		// TODO: run ICH
 		ich.Clear();
 		ich.AddSource(i);
- 		ich.Execute(1000);
+ 		ich.Execute(K);
 
 		if (ich.GetDistanceTo(100) == DBL_MAX)
 		{
-			d_dstPoints[i].isInterior = true;
-			d_dstPoints[i].faceIndex = -1;
-			d_dstPoints[i].facePos3D = Vector3D();
 			continue;
 		}
 
@@ -74,7 +70,6 @@ __global__ void constructSVG(Mesh mesh,
 			dstPoint.faceIndex = -1;
 			dstPoint.facePos3D = Vector3D();
 		}
-		d_dstPoints[i] = dstPoint;
 	}
 	
 }
@@ -94,6 +89,11 @@ void SVG::AssignMesh(Mesh *mesh_, Mesh *d_mesh_)
 	mesh = mesh_; d_mesh = d_mesh_;
 }
 
+void SVG::SetParameters(int K_)
+{
+	K = K_;
+}
+
 bool SVG::Allocation()
 {
 	// allocation memories for PriorityQueues
@@ -109,45 +109,21 @@ bool SVG::Allocation()
 	HANDLE_ERROR(cudaMalloc((void**)&d_storedWindowsBuf, totalThreadNum * STORED_WIN_BUF_SIZE * sizeof(ICH::Window)));
 	HANDLE_ERROR(cudaMalloc((void**)&d_keptFacesBuf, totalThreadNum * KEPT_FACE_SIZE * sizeof(unsigned)));
 
+	// allocation for SVG structure
+	HANDLE_ERROR(cudaMalloc((void**)&d_svg, mesh->vertNum * K * sizeof(SVGNode)));
 	return true;
 }
 
 void SVG::ConstructSVG()
 {
-	InitialValueGeodesic::GeodesicKeyPoint *dstPoints = new InitialValueGeodesic::GeodesicKeyPoint[mesh->vertNum];
-	InitialValueGeodesic::GeodesicKeyPoint *d_dstPoints;
-	HANDLE_ERROR(cudaMalloc((void**)&d_dstPoints, mesh->vertNum * sizeof(InitialValueGeodesic::GeodesicKeyPoint)));
-// 	dstPoints[0].facePos3D.x = 1.414; dstPoints[0].facePos3D.y = -1.414; dstPoints[0].facePos3D.z = 1.414;
-// 	HANDLE_ERROR(cudaMemcpy(d_dstPoints, dstPoints, mesh->vertNum * sizeof(InitialValueGeodesic::GeodesicKeyPoint), cudaMemcpyHostToDevice));
-
 	clock_t start = clock();
-	constructSVG <<<BLOCK_NUM, THREAD_NUM >>>(*d_mesh, 
+	constructSVG <<<BLOCK_NUM, THREAD_NUM >>>(*d_mesh, K, 
 		d_winPQs, d_pseudoWinPQs, d_splitInfoBuf, d_vertInfoBuf, 
-		d_storedWindowsBuf, d_keptFacesBuf, 
-		d_dstPoints);
+		d_storedWindowsBuf, d_keptFacesBuf);
 	// TODO: organize the constructed SVG
 	HANDLE_ERROR(cudaGetLastError());
 	HANDLE_ERROR(cudaDeviceSynchronize());
 	clock_t end = clock();
 	cout << "Time consumed: " << (double)(end - start) / (double)CLOCKS_PER_SEC << endl;
 	system("pause");
-	HANDLE_ERROR(cudaMemcpy(dstPoints, d_dstPoints, mesh->vertNum * sizeof(InitialValueGeodesic::GeodesicKeyPoint), cudaMemcpyDeviceToHost));
-
- 	ofstream output("outputDstPoints.obj");
-	for (int i = 0; i < mesh->vertNum; ++i)
-	{
-		if (dstPoints[i].isInterior)
-			output << "v " << dstPoints[i].facePos3D << endl;
-		else
-		{
-			Vector3D p0 = mesh->verts[mesh->edges[dstPoints[i].edgeIndex].verts[0]].pos;
-			Vector3D p1 = mesh->verts[mesh->edges[dstPoints[i].edgeIndex].verts[1]].pos;
-			Vector3D univ = p1 - p0; univ.normalize();
-
-			output << "v " << p0 + dstPoints[i].pos * univ << endl;
-		}
-	}
-
-	delete[] dstPoints;
-	HANDLE_ERROR(cudaFree(d_dstPoints));
 }

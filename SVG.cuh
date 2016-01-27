@@ -9,13 +9,22 @@
 #define BLOCK_NUM 8
 #define THREAD_NUM 128
 
-#define WINPQ_SIZE 2048
-#define PSEUDOWINPQ_SIZE 2048
+#define WINPQ_SIZE 1024
+#define PSEUDOWINPQ_SIZE 1024
 #define STORED_WIN_BUF_SIZE 100
 #define KEPT_FACE_SIZE 10
 
 class SVG
 {
+public:
+	struct SVGNode	// 28 bytes
+	{
+		int adjNode;
+		double geodDist;
+		unsigned nextToSrcEdge, nextToDstEdge;
+		double nextToSrcX, nextToDstX;
+	};
+
 public:
 
 	typedef PriorityQueues<ICH::Window>::PQItem PQWinItem;
@@ -25,6 +34,7 @@ public:
 	~SVG();
 
 	void AssignMesh(Mesh *mesh_, Mesh *d_mesh_);
+	void SetParameters(int K_);
 	bool Allocation();
 
 	void ConstructSVG();
@@ -44,11 +54,14 @@ private:
 	// other buffers for ICH
 	ICH::Window *d_storedWindowsBuf;
 	unsigned *d_keptFacesBuf;
+
+private:
+	SVGNode *d_svg;
+	int K;
 };
 
-__global__ void constructSVG(Mesh mesh, 
+__global__ void constructSVG(Mesh mesh, int K, 
 	SVG::PQWinItem *d_winPQs, SVG::PQPseudoWinItem *d_pseudoWinPQs, 
 	ICH::SplitInfo *d_splitInfoBuf, ICH::VertInfo *d_vertInfoBuf, 
-	ICH::Window *d_storedWindowsBuf, unsigned *d_keptFacesBuf, 
-	InitialValueGeodesic::GeodesicKeyPoint *d_dstPoints);
+	ICH::Window *d_storedWindowsBuf, unsigned *d_keptFacesBuf);
 #endif

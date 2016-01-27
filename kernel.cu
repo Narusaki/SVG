@@ -21,6 +21,7 @@ int main(int argc, char **argv)
 
 	SVG svg;
 	svg.AssignMesh(&mesh, &d_mesh);
+	svg.SetParameters(500);
 	svg.Allocation();
 	system("pause");
 

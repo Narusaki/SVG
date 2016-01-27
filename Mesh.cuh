@@ -3,7 +3,7 @@
 
 #include "Geometry.cuh"
 
-class Edge	//
+class Edge	// 32 bytes
 {
 public:
 	int verts[2];
@@ -12,7 +12,7 @@ public:
 	double edgeLen;
 };
 
-class Vertex
+class Vertex	// 36 bytes
 {
 public:
 	Vector3D pos;
@@ -22,7 +22,7 @@ public:
 	Vertex() { angle = 0.0; firstEdge = -1; }
 };
 
-class Face
+class Face	// 24 bytes
 {
 public:
 	unsigned verts[3];
