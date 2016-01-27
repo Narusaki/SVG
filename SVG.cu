@@ -50,7 +50,7 @@ __global__ void constructSVG(Mesh mesh,
 		}
 
 		InitialValueGeodesic::GeodesicKeyPoint dstPoint;
-		if (nextToSrcEdge != -1)
+		if (nextToSrcEdge != -1 && !ich.pathPassVert)
 		{
 			initGeodesic.AssignLength(ich.GetDistanceTo(100));
 			initGeodesic.AssignStartPoint(i);

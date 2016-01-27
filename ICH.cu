@@ -130,6 +130,7 @@ __device__ void ICH::OutputStatisticInfo()
 __device__ void ICH::BuildGeodesicPathTo(unsigned faceId, Vector3D pos, unsigned &srcId, 
 	unsigned &nextToSrcEdge, double &nextToSrcX, unsigned &nextToDstEdge, double &nextToDstX)
 {
+	pathPassVert = false;
 	// find the window provide the nearest distance
 	nextToSrcEdge = -1; nextToDstEdge = -1;
 	double minDist = DBL_MAX;
@@ -221,6 +222,7 @@ __device__ void ICH::BuildGeodesicPathTo(unsigned faceId, Vector3D pos, unsigned
 		BuildGeodesicPathTo(dstVert, srcId, nextToSrcEdge, nextToSrcX, nextToDstEdge, nextToDstX);
 		GeodesicKeyPoint gkp;
 		gkp.isVertex = true; gkp.id = dstVert;
+		pathPassVert = true;
 		nextToDstEdge = mesh->verts[gkp.id].firstEdge; nextToDstX = 0.0;
 	}
 	else
@@ -303,7 +305,7 @@ __device__ void ICH::BuildGeodesicPathTo(unsigned faceId, Vector3D pos, unsigned
 			gkp.id = opVert;
 			nextToSrcEdge = mesh->verts[gkp.id].firstEdge; nextToSrcX = 0.0;
 			dstVert = opVert;
-
+			pathPassVert = true;
 			unsigned nextToDstEdge_; double nextToDstX_;
 			BuildGeodesicPathTo(opVert, srcId, nextToSrcEdge, nextToSrcX, nextToDstEdge_, nextToDstX_);
 		}
@@ -315,6 +317,7 @@ __device__ void ICH::BuildGeodesicPathTo(unsigned vertId, unsigned &srcId,
 	unsigned &nextToSrcEdge, double &nextToSrcX, unsigned &nextToDstEdge, double &nextToDstX)
 {
 	// TODO: build geodesic path from vertex vertId to source
+	pathPassVert = false;
 	nextToSrcEdge = -1; nextToDstEdge = -1;
 	unsigned curVert = vertId;
 	GeodesicKeyPoint gkp;
@@ -336,6 +339,7 @@ __device__ void ICH::BuildGeodesicPathTo(unsigned vertId, unsigned &srcId,
 				nextToSrcEdge = mesh->verts[curVert].firstEdge;
 				nextToSrcX = 0.0;
 			}
+			pathPassVert = true;
 			return;
 		}
 		else if (mesh->edges[enterEdge].verts[0] == curVert)
@@ -358,6 +362,7 @@ __device__ void ICH::BuildGeodesicPathTo(unsigned vertId, unsigned &srcId,
 					nextToSrcX = 0.0;
 				}
 			}
+			pathPassVert = true;
 			curVert = nextVert;
 		}
 		else
@@ -446,6 +451,7 @@ __device__ void ICH::BuildGeodesicPathTo(unsigned vertId, unsigned &srcId,
 				gkp.isVertex = true;
 				gkp.id = opVert;
 				nextToSrcEdge = mesh->verts[gkp.id].firstEdge; nextToSrcX = 0.0;
+				pathPassVert = true;
 			}
 			curVert = opVert;
 		}

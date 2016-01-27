@@ -137,6 +137,8 @@ public:
 	Window *storedWindows; unsigned storedWindowsIdx; unsigned storedWindowsSize;
 	unsigned *keptFaces; unsigned keptFacesIdx; unsigned keptFacesSize;
 
+	bool pathPassVert;
+
 	// statistics
 	int numOfWinGen;
 	int maxWinQSize, maxPseudoQSize;
