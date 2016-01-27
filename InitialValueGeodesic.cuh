@@ -7,7 +7,7 @@ class InitialValueGeodesic
 {
 public:
 
-	struct GeodesicKeyPoint
+	struct GeodesicKeyPoint	// 41 bytes
 	{
 		unsigned edgeIndex;
 		double pos;

@@ -2,6 +2,7 @@
 #include "book.cuh"
 #include <iostream>
 #include <fstream>
+#include <ctime>
 
 using namespace std;
 
@@ -66,6 +67,7 @@ __global__ void constructSVG(Mesh mesh,
 		}
 		d_dstPoints[i] = dstPoint;
 	}
+	
 }
 
 SVG::SVG()
@@ -89,8 +91,6 @@ bool SVG::Allocation()
 
 	int totalThreadNum = THREAD_NUM * BLOCK_NUM; 
 
-	cudaError_t cudaStatus;
-
 	HANDLE_ERROR(cudaMalloc((void**)&d_winPQs, totalThreadNum * WINPQ_SIZE * sizeof(PQWinItem)));
 	HANDLE_ERROR(cudaMalloc((void**)&d_pseudoWinPQs, totalThreadNum * PSEUDOWINPQ_SIZE * sizeof(PQPseudoWinItem)));
 
@@ -108,27 +108,34 @@ void SVG::ConstructSVG()
 	InitialValueGeodesic::GeodesicKeyPoint *dstPoints = new InitialValueGeodesic::GeodesicKeyPoint[mesh->vertNum];
 	InitialValueGeodesic::GeodesicKeyPoint *d_dstPoints;
 	HANDLE_ERROR(cudaMalloc((void**)&d_dstPoints, mesh->vertNum * sizeof(InitialValueGeodesic::GeodesicKeyPoint)));
+// 	dstPoints[0].facePos3D.x = 1.414; dstPoints[0].facePos3D.y = -1.414; dstPoints[0].facePos3D.z = 1.414;
+// 	HANDLE_ERROR(cudaMemcpy(d_dstPoints, dstPoints, mesh->vertNum * sizeof(InitialValueGeodesic::GeodesicKeyPoint), cudaMemcpyHostToDevice));
 
+	clock_t start = clock();
 	constructSVG <<<BLOCK_NUM, THREAD_NUM >>>(*d_mesh, 
 		d_winPQs, d_pseudoWinPQs, d_splitInfoBuf, d_vertInfoBuf, 
 		d_storedWindowsBuf, d_keptFacesBuf, 
 		d_dstPoints);
 	// TODO: organize the constructed SVG
-
+	HANDLE_ERROR(cudaGetLastError());
+	HANDLE_ERROR(cudaDeviceSynchronize());
+	clock_t end = clock();
+	cout << "Time consumed: " << (double)(end - start) / (double)CLOCKS_PER_SEC << endl;
+	system("pause");
 	HANDLE_ERROR(cudaMemcpy(dstPoints, d_dstPoints, mesh->vertNum * sizeof(InitialValueGeodesic::GeodesicKeyPoint), cudaMemcpyDeviceToHost));
 
-	ofstream output("outputDstPoints.txt");
+ 	ofstream output("outputDstPoints.obj");
 	for (int i = 0; i < mesh->vertNum; ++i)
 	{
 		if (dstPoints[i].isInterior)
-			output << dstPoints[i].facePos3D << endl;
+			output << "v " << dstPoints[i].facePos3D << endl;
 		else
 		{
 			Vector3D p0 = mesh->verts[mesh->edges[dstPoints[i].edgeIndex].verts[0]].pos;
 			Vector3D p1 = mesh->verts[mesh->edges[dstPoints[i].edgeIndex].verts[1]].pos;
 			Vector3D univ = p1 - p0; univ.normalize();
 
-			output << p0 + dstPoints[i].pos * univ << endl;
+			output << "v " << p0 + dstPoints[i].pos * univ << endl;
 		}
 	}
 

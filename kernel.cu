@@ -1,5 +1,6 @@
 #include <iostream>
 #include "SVG.cuh"
+#include "book.cuh"
 
 using namespace std;
 
@@ -10,7 +11,7 @@ int main(int argc, char **argv)
 		cout << "[.exe] [in.obj]" << endl;
 		return -1;
 	}
-	cudaSetDevice(0);
+	HANDLE_ERROR(cudaSetDevice(0));
 	Mesh mesh, d_mesh;
 	mesh.LoadFromFile(argv[1]);
 	cout << "Mesh is loaded." << endl;
@@ -29,5 +30,7 @@ int main(int argc, char **argv)
 
 	mesh.clear();
 	d_mesh.clearGPU();
+
+	HANDLE_ERROR(cudaDeviceReset());
     return 0;
 }
