@@ -6,8 +6,8 @@
 #include "ICH.cuh"
 #include "InitialValueGeodesic.cuh"
 
-#define BLOCK_NUM 1
-#define THREAD_NUM 1
+#define BLOCK_NUM 8
+#define THREAD_NUM 128
 
 #define WINPQ_SIZE 2048
 #define PSEUDOWINPQ_SIZE 2048

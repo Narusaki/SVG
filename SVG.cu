@@ -15,10 +15,10 @@ __global__ void constructSVG(Mesh mesh,
 	int idx = threadIdx.x + blockIdx.x * blockDim.x;
 	int totalThreadNum = blockDim.x * gridDim.x;
 
-	PriorityQueues<ICH::Window> winPQ(WINPQ_SIZE);
-	PriorityQueues<ICH::PseudoWindow> pseudoWinPQ(PSEUDOWINPQ_SIZE);
-	winPQ.AssignMemory(d_winPQs + idx * mesh.vertNum); 
-	pseudoWinPQ.AssignMemory(d_pseudoWinPQs + idx * mesh.vertNum);
+	PriorityQueues<ICH::Window> winPQ(WINPQ_SIZE-1);
+	PriorityQueues<ICH::PseudoWindow> pseudoWinPQ(PSEUDOWINPQ_SIZE-1);
+	winPQ.AssignMemory(d_winPQs + idx * WINPQ_SIZE); 
+	pseudoWinPQ.AssignMemory(d_pseudoWinPQs + idx * PSEUDOWINPQ_SIZE);
 
 	ICH ich;
 	ich.AssignMesh(&mesh); 
@@ -35,7 +35,7 @@ __global__ void constructSVG(Mesh mesh,
 		// TODO: run ICH
 		ich.Clear();
 		ich.AddSource(i);
-		ich.Execute();
+ 		ich.Execute();
 		unsigned srcId;
 		unsigned nextToSrcEdge, nextToDstEdge;
 		double nextSrcX, nextDstX;

@@ -16,8 +16,8 @@ public:
 	};
 
 public:
-	__device__ PriorityQueues() { maxSize = 0; };
-	__device__ PriorityQueues(int maxSize_) { maxSize = maxSize_; };
+	__device__ PriorityQueues() { maxSize = 0; tail = 1; };
+	__device__ PriorityQueues(int maxSize_) { maxSize = maxSize_; tail = 1; };
 	__device__ ~PriorityQueues();
 	__device__ void AssignMemory(PQItem *d_pqs_);
 
