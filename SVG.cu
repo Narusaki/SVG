@@ -35,7 +35,16 @@ __global__ void constructSVG(Mesh mesh,
 		// TODO: run ICH
 		ich.Clear();
 		ich.AddSource(i);
- 		ich.Execute();
+ 		ich.Execute(1000);
+
+		if (ich.GetDistanceTo(100) == DBL_MAX)
+		{
+			d_dstPoints[i].isInterior = true;
+			d_dstPoints[i].faceIndex = -1;
+			d_dstPoints[i].facePos3D = Vector3D();
+			continue;
+		}
+
 		unsigned srcId;
 		unsigned nextToSrcEdge, nextToDstEdge;
 		double nextSrcX, nextDstX;
