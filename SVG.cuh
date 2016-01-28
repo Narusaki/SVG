@@ -57,11 +57,13 @@ private:
 
 private:
 	SVGNode *d_svg;
+	int *d_svg_tails;
 	int K;
 };
 
 __global__ void constructSVG(Mesh mesh, int K, 
 	SVG::PQWinItem *d_winPQs, SVG::PQPseudoWinItem *d_pseudoWinPQs, 
 	ICH::SplitInfo *d_splitInfoBuf, ICH::VertInfo *d_vertInfoBuf, 
-	ICH::Window *d_storedWindowsBuf, unsigned *d_keptFacesBuf);
+	ICH::Window *d_storedWindowsBuf, unsigned *d_keptFacesBuf, 
+	SVG::SVGNode *d_svg, int *d_svg_tails);
 #endif
