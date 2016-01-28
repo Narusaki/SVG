@@ -23,14 +23,22 @@ int main(int argc, char **argv)
 	svg.AssignMesh(&mesh, &d_mesh);
 	svg.SetParameters(500);
 	svg.Allocation();
+
+	cout << "Please check initial memory." << endl;
 	system("pause");
 
 	svg.ConstructSVG();
 
 	cout << "SVG test ended." << endl;
+	cout << "Please check final memory." << endl;
+	system("pause");
 
+	svg.Free();
 	mesh.clear();
 	d_mesh.clearGPU();
+
+	cout << "Please check SVG-structure + Mesh memory." << endl;
+	system("pause");
 
 	HANDLE_ERROR(cudaDeviceReset());
     return 0;

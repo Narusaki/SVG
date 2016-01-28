@@ -484,6 +484,7 @@ __device__ void ICH::Clear()
 	numOfWinGen = 0;
 	maxWinQSize = 0;
 	maxPseudoQSize = 0;
+	totalCalcVertNum = 0;
 }
 
 __device__ void ICH::Initialize()
@@ -627,7 +628,8 @@ __device__ void ICH::PropagateWindow(const Window &win)
 
 			if (directDist + win.pseudoSrcDist < vertInfos[opVert].dist)
 			{
-				if (vertInfos[opVert].dist == DBL_MAX)
+				if (vertInfos[opVert].dist == DBL_MAX
+					/*&& (win.pseudoSrcId == sourceVert || win.pseudoSrcId == mesh->vertNum)*/)
 					++totalCalcVertNum;
 
 				++vertInfos[opVert].birthTime;
@@ -719,7 +721,8 @@ __device__ void ICH::GenSubWinsForPseudoSrc(const PseudoWindow &pseudoWin)
 			continue;
 		}
 
-		if (vertInfos[opVert].dist == DBL_MAX)
+		if (vertInfos[opVert].dist == DBL_MAX
+			/*&& (pseudoWin.pseudoSrcId == sourceVert || pseudoWin.pseudoSrcId == mesh->vertNum)*/)
 			++totalCalcVertNum;
 
 		vertInfos[opVert].dist = pseudoWin.dist + mesh->edges[curEdge].edgeLen;

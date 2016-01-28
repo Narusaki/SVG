@@ -36,6 +36,7 @@ public:
 	void AssignMesh(Mesh *mesh_, Mesh *d_mesh_);
 	void SetParameters(int K_);
 	bool Allocation();
+	void Free();
 
 	void ConstructSVG();
 

@@ -134,6 +134,16 @@ bool SVG::Allocation()
 	return true;
 }
 
+void SVG::Free()
+{
+	HANDLE_ERROR(cudaFree(d_winPQs));
+	HANDLE_ERROR(cudaFree(d_pseudoWinPQs));
+	HANDLE_ERROR(cudaFree(d_splitInfoBuf));
+	HANDLE_ERROR(cudaFree(d_vertInfoBuf));
+	HANDLE_ERROR(cudaFree(d_storedWindowsBuf));
+	HANDLE_ERROR(cudaFree(d_keptFacesBuf));
+}
+
 void SVG::ConstructSVG()
 {
 	clock_t start = clock();
@@ -146,5 +156,12 @@ void SVG::ConstructSVG()
 	HANDLE_ERROR(cudaDeviceSynchronize());
 	clock_t end = clock();
 	cout << "Time consumed: " << (double)(end - start) / (double)CLOCKS_PER_SEC << endl;
-	system("pause");
+
+	int *svg_tails = new int[mesh->vertNum];
+	HANDLE_ERROR(cudaMemcpy(svg_tails, d_svg_tails, mesh->vertNum * sizeof(int), cudaMemcpyDeviceToHost));
+	double degree = 0;
+	for (int i = 0; i < mesh->vertNum; ++i)
+		degree += svg_tails[i];
+	degree /= mesh->vertNum;
+	cout << "Average degree of node in SVG: " << degree << endl;
 }
