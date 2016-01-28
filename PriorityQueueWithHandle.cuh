@@ -1,32 +1,34 @@
-#ifndef GPU_PRIORITYQUEUE
-#define GPU_PRIORITYQUEUE
+#ifndef GPU_PRIORITYQUEUEWITHHANDLE
+#define GPU_PRIORITYQUEUEWITHHANDLE
 
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 #include <iostream>
 
 template <typename T>
-class PriorityQueues
+class PriorityQueuesWithHandle
 {
 public:
 	struct PQItem
 	{
 		double key;
 		T item;
+		int *backHandle;
 	};
 
 public:
-	__device__ PriorityQueues() { maxSize = 0; tail = 1; };
-	__device__ PriorityQueues(int maxSize_) { maxSize = maxSize_; tail = 1; };
-	__device__ ~PriorityQueues();
-	__device__ void AssignMemory(PQItem *d_pqs_, int maxSize_);
+	__host__ __device__ PriorityQueuesWithHandle() { maxSize = 0; tail = 1; };
+	__host__ __device__ PriorityQueuesWithHandle(int maxSize_) { maxSize = maxSize_; tail = 1; };
+	__host__ __device__ ~PriorityQueuesWithHandle();
+	__host__ __device__ void AssignMemory(PQItem *d_pqs_, int maxSize_);
 
-	__device__ void push(T item, double key);
-	__device__ T top();
-	__device__ T pop();
-	__device__ bool empty();
-	__device__ void clear();
-	__device__ int size();
+	__host__ __device__ void push(T item, int *backHandle, double key);
+	__host__ __device__ T top();
+	__host__ __device__ T pop();
+	__host__ __device__ void decrease(int handle, double newKey);
+	__host__ __device__ bool empty();
+	__host__ __device__ void clear();
+	__host__ __device__ int size();
 
 private:
 	PQItem *d_pqs;
@@ -35,20 +37,20 @@ private:
 };
 
 template <typename T>
-__device__ PriorityQueues<T>::~PriorityQueues()
+__host__ __device__ PriorityQueuesWithHandle<T>::~PriorityQueuesWithHandle()
 {
 
 }
 
 template <typename T>
-__device__ void PriorityQueues<T>::AssignMemory(PQItem *d_pqs_, int maxSize_)
+__host__ __device__ void PriorityQueuesWithHandle<T>::AssignMemory(PQItem *d_pqs_, int maxSize_)
 {
 	d_pqs = d_pqs_;
 	maxSize = maxSize_;
 }
 
 template <typename T>
-__device__ void PriorityQueues<T>::push(T item, double key)
+__host__ __device__ void PriorityQueuesWithHandle<T>::push(T item, int *backHandle, double key)
 {
 	if (tail - 1 >= maxSize) return;
 	++tail;
@@ -59,21 +61,23 @@ __device__ void PriorityQueues<T>::push(T item, double key)
 	while (pIdx > 0 && d_pqs[pIdx].key > key)
 	{
 		d_pqs[curIdx] = d_pqs[pIdx];
+		(*d_pqs[curIdx].backHandle) = curIdx;
 		curIdx = pIdx;
 		pIdx = curIdx / 2;
 	}
 	d_pqs[curIdx].item = item;
 	d_pqs[curIdx].key = key;
+	(*d_pqs[curIdx].backHandle) = backHandle;
 }
 
 template <typename T>
-__device__ T PriorityQueues<T>::top()
+__host__ __device__ T PriorityQueuesWithHandle<T>::top()
 {
 	return d_pqs[1].item;
 }
 
 template <typename T>
-__device__ T PriorityQueues<T>::pop()
+__host__ __device__ T PriorityQueuesWithHandle<T>::pop()
 {
 	T ret = d_pqs[1].item;
 	--tail;
@@ -90,6 +94,8 @@ __device__ T PriorityQueues<T>::pop()
 	while (minChildIdx != -1 && d_pqs[minChildIdx].key < topItem.key)
 	{
 		d_pqs[curIdx] = d_pqs[minChildIdx];
+		(*d_pqs[curIdx].backHandle) = curIdx;
+
 		curIdx = minChildIdx;
 		leftChildIdx = curIdx * 2; rightChildIdx = curIdx * 2 + 1;
 		if (rightChildIdx < tail)
@@ -100,24 +106,31 @@ __device__ T PriorityQueues<T>::pop()
 	}
 
 	d_pqs[curIdx] = topItem;
+	(*d_pqs[curIdx].backHandle) = curIdx;
 	
 	return ret;
 }
 
 template <typename T>
-__device__ bool PriorityQueues<T>::empty()
+__host__ __device__ void PriorityQueuesWithHandle<T>::decrease(int handle, double newKey)
+{
+	// TODO: decrease key
+}
+
+template <typename T>
+__host__ __device__ bool PriorityQueuesWithHandle<T>::empty()
 {
 	return tail == 1;
 }
 
 template <typename T>
-__device__ void PriorityQueues<T>::clear()
+__host__ __device__ void PriorityQueuesWithHandle<T>::clear()
 {
 	tail = 1;
 }
 
 template <typename T>
-__device__ int PriorityQueues<T>::size()
+__host__ __device__ int PriorityQueuesWithHandle<T>::size()
 {
 	return tail - 1;
 }

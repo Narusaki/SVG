@@ -17,8 +17,8 @@ __global__ void constructSVG(Mesh mesh, int K,
 
 	PriorityQueues<ICH::Window> winPQ(WINPQ_SIZE-1);
 	PriorityQueues<ICH::PseudoWindow> pseudoWinPQ(PSEUDOWINPQ_SIZE-1);
-	winPQ.AssignMemory(d_winPQs + idx * WINPQ_SIZE); 
-	pseudoWinPQ.AssignMemory(d_pseudoWinPQs + idx * PSEUDOWINPQ_SIZE);
+	winPQ.AssignMemory(d_winPQs + idx * WINPQ_SIZE, WINPQ_SIZE); 
+	pseudoWinPQ.AssignMemory(d_pseudoWinPQs + idx * PSEUDOWINPQ_SIZE, PSEUDOWINPQ_SIZE);
 
 	ICH ich;
 	ich.AssignMesh(&mesh); 
@@ -164,4 +164,44 @@ void SVG::ConstructSVG()
 		degree += svg_tails[i];
 	degree /= mesh->vertNum;
 	cout << "Average degree of node in SVG: " << degree << endl;
+}
+
+void SVG::CopySVGToHost()
+{
+	svg = new SVGNode[mesh->vertNum * K];
+	svg_tails = new int[mesh->vertNum];
+
+	HANDLE_ERROR(cudaMemcpy(svg, d_svg, mesh->vertNum * K * sizeof(SVGNode), cudaMemcpyDeviceToHost));
+	HANDLE_ERROR(cudaMemcpy(svg_tails, d_svg_tails, mesh->vertNum * sizeof(int), cudaMemcpyDeviceToHost));
+}
+
+__host__ __device__ void SVG::SolveSSSD(int s, int t, GraphDistInfo * graphDistInfos, PriorityQueuesWithHandle<int> pq)
+{
+	// TODO: use Astar algorithm to search dist&path to t; use Euclidean dist as heuristic prediction
+}
+
+__host__ __device__ void SVG::SolveMSMD(int *sources, int Ns, int *destinations, int Nd, GraphDistInfo * graphDistInfos, PriorityQueuesWithHandle<int> pq)
+{
+	// TODO: use Dijkstra algorithm to search min-dist&path to destinations
+}
+
+__host__ __device__ void SVG::Astar(GraphDistInfo * graphDistInfos, PriorityQueuesWithHandle<int> pq)
+{
+	SVGNode *local_svg = NULL;
+	int *local_svg_tails = NULL;
+
+#ifdef __CUDA_ARCH__
+	local_svg = d_svg; local_svg_tails = d_svg_tails;
+#else
+	local_svg = svg;
+#endif
+
+	while (!pq.empty())
+	{
+		int curNodeIndex = pq.pop();
+		for (int i = 0; i < local_svg_tails[curNodeIndex]; ++i)
+		{
+
+		}
+	}
 }

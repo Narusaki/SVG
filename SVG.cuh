@@ -3,6 +3,7 @@
 
 #include "Mesh.cuh"
 #include "PriorityQueue.cuh"
+#include "PriorityQueueWithHandle.cuh"
 #include "ICH.cuh"
 #include "InitialValueGeodesic.cuh"
 
@@ -25,6 +26,18 @@ public:
 		double nextToSrcX, nextToDstX;
 	};
 
+	struct GraphDistInfo
+	{
+		double dist;
+		int nodeIndex;
+		int indexInPQ;
+	};
+
+	enum SEARCHTYPE
+	{
+		ASTAR, DIJKSTRA, 
+	};
+
 public:
 
 	typedef PriorityQueues<ICH::Window>::PQItem PQWinItem;
@@ -39,6 +52,19 @@ public:
 	void Free();
 
 	void ConstructSVG();
+
+	// must invoke this method before searching SVG on host
+	void CopySVGToHost();
+
+	__host__ __device__ void SolveSSSD(int s, int t, 
+		GraphDistInfo * graphDistInfos, PriorityQueuesWithHandle<int> pq);
+
+	__host__ __device__ void SolveMSMD(int *sources, int Ns, int *destinations, int Nd, 
+		GraphDistInfo * graphDistInfos, PriorityQueuesWithHandle<int> pq);
+
+private:
+	// Astar algorithm, degenerate to Dijkstra if choose the so-far distance only as priority
+	__host__ __device__ void Astar(GraphDistInfo * graphDistInfos, PriorityQueuesWithHandle<int> pq);
 
 private:
 	Mesh *mesh, *d_mesh;
@@ -56,9 +82,12 @@ private:
 	ICH::Window *d_storedWindowsBuf;
 	unsigned *d_keptFacesBuf;
 
+	// search parameter
+	SEARCHTYPE searchType;
+
 private:
-	SVGNode *d_svg;
-	int *d_svg_tails;
+	SVGNode *d_svg, *svg;
+	int *d_svg_tails, *svg_tails;
 	int K;
 };
 

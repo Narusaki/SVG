@@ -162,6 +162,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
       <TargetMachinePlatform>64</TargetMachinePlatform>
       <GenerateRelocatableDeviceCode>true</GenerateRelocatableDeviceCode>
     </CudaCompile>
+    <CudaLink />
   </ItemDefinitionGroup>
   <ItemGroup>
     <CudaCompile Include="book.cu" />
@@ -179,6 +180,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     <ClInclude Include="InitialValueGeodesic.cuh" />
     <ClInclude Include="Mesh.cuh" />
     <ClInclude Include="PriorityQueue.cuh" />
+    <ClInclude Include="PriorityQueueWithHandle.cuh" />
     <ClInclude Include="SVG.cuh" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
