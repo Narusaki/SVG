@@ -175,17 +175,23 @@ void SVG::CopySVGToHost()
 	HANDLE_ERROR(cudaMemcpy(svg_tails, d_svg_tails, mesh->vertNum * sizeof(int), cudaMemcpyDeviceToHost));
 }
 
-__host__ __device__ void SVG::SolveSSSD(int s, int t, GraphDistInfo * graphDistInfos, PriorityQueuesWithHandle<int> pq)
+__host__ __device__ void SVG::SolveSSSD(int s, int t, Mesh *mesh, GraphDistInfo * graphDistInfos, PriorityQueuesWithHandle<int> pq)
 {
 	// TODO: use Astar algorithm to search dist&path to t; use Euclidean dist as heuristic prediction
+	searchType = ASTAR;
+	// TODO: initialize graphDistInfos & pq
+	Astar(mesh, t, graphDistInfos, pq);
 }
 
-__host__ __device__ void SVG::SolveMSMD(int *sources, int Ns, int *destinations, int Nd, GraphDistInfo * graphDistInfos, PriorityQueuesWithHandle<int> pq)
+__host__ __device__ void SVG::SolveMSMD(int *sources, int Ns, int *destinations, int Nd, Mesh *mesh, GraphDistInfo * graphDistInfos, PriorityQueuesWithHandle<int> pq)
 {
 	// TODO: use Dijkstra algorithm to search min-dist&path to destinations
+	searchType = DIJKSTRA;
+	// TODO: initialize graphDistInfos & pq
+	Astar(mesh, -1, graphDistInfos, pq);
 }
 
-__host__ __device__ void SVG::Astar(GraphDistInfo * graphDistInfos, PriorityQueuesWithHandle<int> pq)
+__host__ __device__ void SVG::Astar(Mesh *mesh, int t, GraphDistInfo * graphDistInfos, PriorityQueuesWithHandle<int> pq)
 {
 	SVGNode *local_svg = NULL;
 	int *local_svg_tails = NULL;
@@ -199,9 +205,25 @@ __host__ __device__ void SVG::Astar(GraphDistInfo * graphDistInfos, PriorityQueu
 	while (!pq.empty())
 	{
 		int curNodeIndex = pq.pop();
+		SVGNode *curNodeList = local_svg + K * curNodeIndex;
 		for (int i = 0; i < local_svg_tails[curNodeIndex]; ++i)
 		{
+			int adjNodeIndex = curNodeList[i].adjNode;
+			double newDist = graphDistInfos[curNodeIndex].dist + curNodeList[i].geodDist;
+			if (newDist >= graphDistInfos[adjNodeIndex].dist) continue;
 
+			graphDistInfos[adjNodeIndex].dist = newDist;
+			double priority = 0.0;
+			switch (searchType)
+			{
+			case SVG::ASTAR: priority = newDist + (mesh->verts[adjNodeIndex].pos - mesh->verts[t].pos).length(); break;
+			case SVG::DIJKSTRA: priority = newDist; break;
+			default: priority = newDist; break;
+			}
+			if (graphDistInfos[adjNodeIndex].indexInPQ == -1)
+				pq.push(adjNodeIndex, &graphDistInfos[adjNodeIndex].indexInPQ, priority);
+			else
+				pq.decrease(graphDistInfos[adjNodeIndex].indexInPQ, priority);
 		}
 	}
 }

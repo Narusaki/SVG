@@ -61,13 +61,13 @@ __host__ __device__ void PriorityQueuesWithHandle<T>::push(T item, int *backHand
 	while (pIdx > 0 && d_pqs[pIdx].key > key)
 	{
 		d_pqs[curIdx] = d_pqs[pIdx];
-		(*d_pqs[curIdx].backHandle) = curIdx;
+		*(d_pqs[curIdx].backHandle) = curIdx;
 		curIdx = pIdx;
 		pIdx = curIdx / 2;
 	}
 	d_pqs[curIdx].item = item;
 	d_pqs[curIdx].key = key;
-	(*d_pqs[curIdx].backHandle) = backHandle;
+	d_pqs[curIdx].backHandle = backHandle;
 }
 
 template <typename T>
@@ -80,6 +80,7 @@ template <typename T>
 __host__ __device__ T PriorityQueuesWithHandle<T>::pop()
 {
 	T ret = d_pqs[1].item;
+	*(d_pqs[1].backHandle) = -1;
 	--tail;
 	PQItem topItem = d_pqs[tail];
 
@@ -94,7 +95,7 @@ __host__ __device__ T PriorityQueuesWithHandle<T>::pop()
 	while (minChildIdx != -1 && d_pqs[minChildIdx].key < topItem.key)
 	{
 		d_pqs[curIdx] = d_pqs[minChildIdx];
-		(*d_pqs[curIdx].backHandle) = curIdx;
+		*(d_pqs[curIdx].backHandle) = curIdx;
 
 		curIdx = minChildIdx;
 		leftChildIdx = curIdx * 2; rightChildIdx = curIdx * 2 + 1;
@@ -106,7 +107,7 @@ __host__ __device__ T PriorityQueuesWithHandle<T>::pop()
 	}
 
 	d_pqs[curIdx] = topItem;
-	(*d_pqs[curIdx].backHandle) = curIdx;
+	*(d_pqs[curIdx].backHandle) = curIdx;
 	
 	return ret;
 }
@@ -115,6 +116,21 @@ template <typename T>
 __host__ __device__ void PriorityQueuesWithHandle<T>::decrease(int handle, double newKey)
 {
 	// TODO: decrease key
+	int curIdx = handle;
+	int pIdx = curIdx / 2;
+	d_pqs[curIdx].key = newKey;
+	PQItem curItem = d_pqs[curIdx];
+
+	while (pIdx > 0 && d_pqs[pIdx].key < newKey)
+	{
+		d_pqs[curIdx] = d_pqs[pIdx];
+		*(d_pqs[curIdx].backHandle) = curIdx;
+		curIdx = pIdx;
+		pIdx = curIdx / 2;
+	}
+
+	d_pqs[curIdx] = curItem;
+	*(d_pqs[curIdx].backHandle) = curIdx;
 }
 
 template <typename T>

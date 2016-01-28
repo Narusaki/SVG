@@ -29,7 +29,6 @@ public:
 	struct GraphDistInfo
 	{
 		double dist;
-		int nodeIndex;
 		int indexInPQ;
 	};
 
@@ -56,15 +55,15 @@ public:
 	// must invoke this method before searching SVG on host
 	void CopySVGToHost();
 
-	__host__ __device__ void SolveSSSD(int s, int t, 
+	__host__ __device__ void SolveSSSD(int s, int t, Mesh *mesh, 
 		GraphDistInfo * graphDistInfos, PriorityQueuesWithHandle<int> pq);
 
-	__host__ __device__ void SolveMSMD(int *sources, int Ns, int *destinations, int Nd, 
+	__host__ __device__ void SolveMSMD(int *sources, int Ns, int *destinations, int Nd, Mesh *mesh,
 		GraphDistInfo * graphDistInfos, PriorityQueuesWithHandle<int> pq);
 
 private:
 	// Astar algorithm, degenerate to Dijkstra if choose the so-far distance only as priority
-	__host__ __device__ void Astar(GraphDistInfo * graphDistInfos, PriorityQueuesWithHandle<int> pq);
+	__host__ __device__ void Astar(Mesh *mesh, int t, GraphDistInfo * graphDistInfos, PriorityQueuesWithHandle<int> pq);
 
 private:
 	Mesh *mesh, *d_mesh;
