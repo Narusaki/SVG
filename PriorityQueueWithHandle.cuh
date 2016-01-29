@@ -68,6 +68,7 @@ __host__ __device__ void PriorityQueuesWithHandle<T>::push(T item, int *backHand
 	d_pqs[curIdx].item = item;
 	d_pqs[curIdx].key = key;
 	d_pqs[curIdx].backHandle = backHandle;
+	*backHandle = curIdx;
 }
 
 template <typename T>
@@ -118,10 +119,9 @@ __host__ __device__ void PriorityQueuesWithHandle<T>::decrease(int handle, doubl
 	// TODO: decrease key
 	int curIdx = handle;
 	int pIdx = curIdx / 2;
-	d_pqs[curIdx].key = newKey;
 	PQItem curItem = d_pqs[curIdx];
 
-	while (pIdx > 0 && d_pqs[pIdx].key < newKey)
+	while (pIdx > 0 && d_pqs[pIdx].key > newKey)
 	{
 		d_pqs[curIdx] = d_pqs[pIdx];
 		*(d_pqs[curIdx].backHandle) = curIdx;
@@ -130,6 +130,7 @@ __host__ __device__ void PriorityQueuesWithHandle<T>::decrease(int handle, doubl
 	}
 
 	d_pqs[curIdx] = curItem;
+	d_pqs[curIdx].key = newKey;
 	*(d_pqs[curIdx].backHandle) = curIdx;
 }
 

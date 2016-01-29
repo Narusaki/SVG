@@ -38,10 +38,12 @@ __global__ void constructSVG(Mesh mesh, int K,
  		ich.Execute(K);
 
 		d_svg_tails[i] = 0;
+		SVG::SVGNode *d_cur_svg = d_svg + K * i;
 
 		for (int j = 0; j < mesh.vertNum; ++j)
 		{
 			if (ich.GetDistanceTo(j) == DBL_MAX) continue;
+			if (j == i) continue;
 
 			unsigned srcId;
 			unsigned nextToSrcEdge, nextToDstEdge;
@@ -59,12 +61,12 @@ __global__ void constructSVG(Mesh mesh, int K,
 				nextToSrcEdge = nextToDstEdge;
 				nextSrcX = nextDstX;
 			}
-			d_svg[d_svg_tails[i]].adjNode = j;
-			d_svg[d_svg_tails[i]].geodDist = ich.GetDistanceTo(j);
-			d_svg[d_svg_tails[i]].nextToSrcX = nextSrcX;
-			d_svg[d_svg_tails[i]].nextToSrcEdge = nextToSrcEdge;
-			d_svg[d_svg_tails[i]].nextToDstX = nextDstX;
-			d_svg[d_svg_tails[i]].nextToDstEdge = nextToDstEdge;
+			d_cur_svg[d_svg_tails[i]].adjNode = j;
+			d_cur_svg[d_svg_tails[i]].geodDist = ich.GetDistanceTo(j);
+			d_cur_svg[d_svg_tails[i]].nextToSrcX = nextSrcX;
+			d_cur_svg[d_svg_tails[i]].nextToSrcEdge = nextToSrcEdge;
+			d_cur_svg[d_svg_tails[i]].nextToDstX = nextDstX;
+			d_cur_svg[d_svg_tails[i]].nextToDstEdge = nextToDstEdge;
 
 			++d_svg_tails[i];
 
@@ -94,7 +96,8 @@ __global__ void constructSVG(Mesh mesh, int K,
 
 SVG::SVG()
 {
-
+	d_svg = NULL; svg = NULL;
+	d_svg_tails = NULL; svg_tails = NULL;
 }
 
 SVG::~SVG()
@@ -144,6 +147,14 @@ void SVG::Free()
 	HANDLE_ERROR(cudaFree(d_keptFacesBuf));
 }
 
+void SVG::FreeSVGStructure()
+{
+	HANDLE_ERROR(cudaFree(d_svg));
+	HANDLE_ERROR(cudaFree(d_svg_tails));
+	if (svg) delete[] svg;
+	if (svg_tails) delete[] svg_tails;
+}
+
 void SVG::ConstructSVG()
 {
 	clock_t start = clock();
@@ -173,21 +184,37 @@ void SVG::CopySVGToHost()
 
 	HANDLE_ERROR(cudaMemcpy(svg, d_svg, mesh->vertNum * K * sizeof(SVGNode), cudaMemcpyDeviceToHost));
 	HANDLE_ERROR(cudaMemcpy(svg_tails, d_svg_tails, mesh->vertNum * sizeof(int), cudaMemcpyDeviceToHost));
+// 	cout << mesh->vertNum << endl;
+// 	for (int j = 0; j < mesh->vertNum; ++j)
+// 	{
+// 		cout << "Node " << j << " degree: " << svg_tails[j] << endl;
+// 		SVGNode *curSVGList = svg + K * j;
+// 		for (int i = 0; i < svg_tails[j]; ++i)
+// 		{
+// 			printf("%d %f %d %f %d %f\n", curSVGList[i].adjNode, curSVGList[i].geodDist, 
+// 				curSVGList[i].nextToSrcEdge, curSVGList[i].nextToSrcX, 
+// 				curSVGList[i].nextToDstEdge, curSVGList[i].nextToDstX);
+// 			system("pause");
+// 		}
+// 	}
 }
 
 __host__ __device__ void SVG::SolveSSSD(int s, int t, Mesh *mesh, GraphDistInfo * graphDistInfos, PriorityQueuesWithHandle<int> pq)
 {
 	// TODO: use Astar algorithm to search dist&path to t; use Euclidean dist as heuristic prediction
-	searchType = ASTAR;
 	// TODO: initialize graphDistInfos & pq
+	searchType = ASTAR;
+	graphDistInfos[s].dist = 0.0;
+	graphDistInfos[s].pathParentIndex = -1;
+	pq.push(s, &graphDistInfos[s].indexInPQ, 0.0 + (mesh->verts[s].pos - mesh->verts[t].pos).length());
 	Astar(mesh, t, graphDistInfos, pq);
 }
 
 __host__ __device__ void SVG::SolveMSMD(int *sources, int Ns, int *destinations, int Nd, Mesh *mesh, GraphDistInfo * graphDistInfos, PriorityQueuesWithHandle<int> pq)
 {
 	// TODO: use Dijkstra algorithm to search min-dist&path to destinations
-	searchType = DIJKSTRA;
 	// TODO: initialize graphDistInfos & pq
+	searchType = DIJKSTRA;
 	Astar(mesh, -1, graphDistInfos, pq);
 }
 
@@ -199,12 +226,17 @@ __host__ __device__ void SVG::Astar(Mesh *mesh, int t, GraphDistInfo * graphDist
 #ifdef __CUDA_ARCH__
 	local_svg = d_svg; local_svg_tails = d_svg_tails;
 #else
-	local_svg = svg;
+	local_svg = svg; local_svg_tails = svg_tails;
 #endif
 
 	while (!pq.empty())
 	{
 		int curNodeIndex = pq.pop();
+		if (searchType == ASTAR && curNodeIndex == t)
+		{
+			pq.clear();
+			break;
+		}
 		SVGNode *curNodeList = local_svg + K * curNodeIndex;
 		for (int i = 0; i < local_svg_tails[curNodeIndex]; ++i)
 		{
@@ -213,6 +245,8 @@ __host__ __device__ void SVG::Astar(Mesh *mesh, int t, GraphDistInfo * graphDist
 			if (newDist >= graphDistInfos[adjNodeIndex].dist) continue;
 
 			graphDistInfos[adjNodeIndex].dist = newDist;
+			graphDistInfos[adjNodeIndex].pathParentIndex = curNodeIndex;
+
 			double priority = 0.0;
 			switch (searchType)
 			{
@@ -220,6 +254,7 @@ __host__ __device__ void SVG::Astar(Mesh *mesh, int t, GraphDistInfo * graphDist
 			case SVG::DIJKSTRA: priority = newDist; break;
 			default: priority = newDist; break;
 			}
+
 			if (graphDistInfos[adjNodeIndex].indexInPQ == -1)
 				pq.push(adjNodeIndex, &graphDistInfos[adjNodeIndex].indexInPQ, priority);
 			else

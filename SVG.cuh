@@ -29,7 +29,10 @@ public:
 	struct GraphDistInfo
 	{
 		double dist;
+		int pathParentIndex;
 		int indexInPQ;
+
+		__host__ __device__ GraphDistInfo() { dist = DBL_MAX; pathParentIndex = -1; indexInPQ = -1; }
 	};
 
 	enum SEARCHTYPE
@@ -49,6 +52,7 @@ public:
 	void SetParameters(int K_);
 	bool Allocation();
 	void Free();
+	void FreeSVGStructure();
 
 	void ConstructSVG();
 
