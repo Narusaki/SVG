@@ -17,8 +17,8 @@ __global__ void constructSVG(Mesh mesh, int K,
 
 	PriorityQueues<ICH::Window> winPQ(WINPQ_SIZE-1);
 	PriorityQueues<ICH::PseudoWindow> pseudoWinPQ(PSEUDOWINPQ_SIZE-1);
-	winPQ.AssignMemory(d_winPQs + idx * WINPQ_SIZE, WINPQ_SIZE); 
-	pseudoWinPQ.AssignMemory(d_pseudoWinPQs + idx * PSEUDOWINPQ_SIZE, PSEUDOWINPQ_SIZE);
+	winPQ.AssignMemory(d_winPQs + idx * WINPQ_SIZE, WINPQ_SIZE-1); 
+	pseudoWinPQ.AssignMemory(d_pseudoWinPQs + idx * PSEUDOWINPQ_SIZE, PSEUDOWINPQ_SIZE-1);
 
 	ICH ich;
 	ich.AssignMesh(&mesh); 
