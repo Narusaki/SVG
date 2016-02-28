@@ -30,14 +30,14 @@ public:
 	__device__ void AssignFirstKeyPoint(unsigned iEdge, double pos);
 
 	__device__ void AssignLength(double geodesicLength_);
-	
+
 	__device__ GeodesicKeyPoint BuildGeodesicPath();
 
 	/*__device__ void OutputGeodesicPathWithMesh(const char* fileName);*/
 
 private:
-// 	__device__ GeodesicKeyPoint ProjectDirectionOnto1RingNeighOfSource();
-// 	__device__ GeodesicKeyPoint ProjectDirectionOntoFace();
+	// 	__device__ GeodesicKeyPoint ProjectDirectionOnto1RingNeighOfSource();
+	// 	__device__ GeodesicKeyPoint ProjectDirectionOntoFace();
 
 private:
 	Mesh *mesh;

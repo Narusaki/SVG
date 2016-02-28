@@ -26,7 +26,7 @@ public:
 			return minDist > right.minDist;
 		}
 
-		__device__ void calcMinDist()
+		__host__ __device__ void calcMinDist()
 		{
 			double wLen = b1 - b0;
 			double xProj = (d0*d0 + wLen*wLen - d1*d1) / (2 * wLen);
@@ -37,7 +37,7 @@ public:
 			}
 		}
 
-		__device__ Vector2D FlatenedSrc() const
+		__host__ __device__ Vector2D FlatenedSrc() const
 		{
 			Vector2D src2D;
 			double wLen = b1 - b0;
@@ -56,7 +56,7 @@ public:
 		unsigned pseudoBirthTime;
 		unsigned level;
 
-		__device__ bool operator< (const PseudoWindow &right) const {
+		__host__ __device__ bool operator< (const PseudoWindow &right) const {
 			return dist > right.dist;
 		};
 	};
@@ -85,43 +85,43 @@ public:
 		unsigned id;
 		double pos;
 	};
-	
-public:
-	__device__ ICH();
-	__device__ ~ICH();
 
-	__device__ void AssignMesh(Mesh *mesh_);
-	__device__ void AssignBuffers(SplitInfo *splitInfos_, VertInfo *vertInfos_, 
-		PriorityQueues< Window > winQ_, PriorityQueues< PseudoWindow > pseudoSrcQ_, 
+public:
+	__host__ __device__ ICH();
+	__host__ __device__ ~ICH();
+
+	__host__ __device__ void AssignMesh(Mesh *mesh_);
+	__host__ __device__ void AssignBuffers(SplitInfo *splitInfos_, VertInfo *vertInfos_,
+		PriorityQueues< Window > winQ_, PriorityQueues< PseudoWindow > pseudoSrcQ_,
 		Window* storedWindows_, unsigned *keptFaces_);
-	__device__ void AddSource(unsigned vertId);
-	__device__ void AddSource(unsigned faceId, Vector3D pos);
-	__device__ void AddFacesKeptWindow(unsigned faceId);
-	__device__ void Execute(int totalCalcVertNum_ = -1);
-	__device__ void OutputStatisticInfo();
-	__device__ void BuildGeodesicPathTo(unsigned vertId, unsigned &srcId, 
+	__host__ __device__ void AddSource(unsigned vertId);
+	__host__ __device__ void AddSource(unsigned faceId, Vector3D pos);
+	__host__ __device__ void AddFacesKeptWindow(unsigned faceId);
+	__host__ __device__ void Execute(int totalCalcVertNum_ = -1);
+	__host__ __device__ void OutputStatisticInfo();
+	__host__ __device__ void BuildGeodesicPathTo(unsigned vertId, unsigned &srcId,
 		unsigned &nextToSrcEdge, double &nextToSrcX, unsigned &nextToDstEdge, double &nextToDstX);
-	__device__ void BuildGeodesicPathTo(unsigned faceId, Vector3D pos, unsigned &srcId, 
+	__host__ __device__ void BuildGeodesicPathTo(unsigned faceId, Vector3D pos, unsigned &srcId,
 		unsigned &nextToSrcEdge, double &nextToSrcX, unsigned &nextToDstEdge, double &nextToDstX);
-	__device__ double GetDistanceTo(unsigned vertId);
-	__device__ void Clear();
+	__host__ __device__ double GetDistanceTo(unsigned vertId);
+	__host__ __device__ void Clear();
 
 private:
-	__device__ void Initialize();
-	__device__ void PropagateWindow(const Window &win);
+	__host__ __device__ void Initialize();
+	__host__ __device__ void PropagateWindow(const Window &win);
 
-	__device__ void GenSubWinsForPseudoSrc(const PseudoWindow &pseudoWin);
-	__device__ void GenSubWinsForPseudoSrcFromWindow(const PseudoWindow &pseudoWin, unsigned &startEdge, unsigned &endEdge);
-	__device__ void GenSubWinsForPseudoSrcFromPseudoSrc(const PseudoWindow &pseudoWin, unsigned &startEdge, unsigned &endEdge);
+	__host__ __device__ void GenSubWinsForPseudoSrc(const PseudoWindow &pseudoWin);
+	__host__ __device__ void GenSubWinsForPseudoSrcFromWindow(const PseudoWindow &pseudoWin, unsigned &startEdge, unsigned &endEdge);
+	__host__ __device__ void GenSubWinsForPseudoSrcFromPseudoSrc(const PseudoWindow &pseudoWin, unsigned &startEdge, unsigned &endEdge);
 
-	__device__ bool IsValidWindow(const Window &win, bool isLeftChild);
-	__device__ void BuildWindow(const Window &fatherWin,
-		unsigned edge, 
-		double t0, double t1, 
-		const Vector2D &v0, const Vector2D &v1, 
+	__host__ __device__ bool IsValidWindow(const Window &win, bool isLeftChild);
+	__host__ __device__ void BuildWindow(const Window &fatherWin,
+		unsigned edge,
+		double t0, double t1,
+		const Vector2D &v0, const Vector2D &v1,
 		Window &win);
 
-	__device__ double Intersect(const Vector2D &v0, const Vector2D &v1, const Vector2D &p0, const Vector2D &p1);
+	__host__ __device__ double Intersect(const Vector2D &v0, const Vector2D &v1, const Vector2D &p0, const Vector2D &p1);
 
 public:
 	// all these fields need to be allocated first (except for the PriorityQueues), 

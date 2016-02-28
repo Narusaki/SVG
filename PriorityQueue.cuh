@@ -16,17 +16,17 @@ public:
 	};
 
 public:
-	__device__ PriorityQueues() { maxSize = 0; tail = 1; };
-	__device__ PriorityQueues(int maxSize_) { maxSize = maxSize_; tail = 1; };
-	__device__ ~PriorityQueues();
-	__device__ void AssignMemory(PQItem *d_pqs_, int maxSize_);
+	__host__ __device__ PriorityQueues() { maxSize = 0; tail = 1; };
+	__host__ __device__ PriorityQueues(int maxSize_) { maxSize = maxSize_; tail = 1; };
+	__host__ __device__ ~PriorityQueues();
+	__host__ __device__ void AssignMemory(PQItem *d_pqs_, int maxSize_);
 
-	__device__ void push(T item, double key);
-	__device__ T top();
-	__device__ T pop();
-	__device__ bool empty();
-	__device__ void clear();
-	__device__ int size();
+	__host__ __device__ void push(T item, double key);
+	__host__ __device__ T top();
+	__host__ __device__ T pop();
+	__host__ __device__ bool empty();
+	__host__ __device__ void clear();
+	__host__ __device__ int size();
 
 private:
 	PQItem *d_pqs;
@@ -35,20 +35,20 @@ private:
 };
 
 template <typename T>
-__device__ PriorityQueues<T>::~PriorityQueues()
+__host__ __device__ PriorityQueues<T>::~PriorityQueues()
 {
 
 }
 
 template <typename T>
-__device__ void PriorityQueues<T>::AssignMemory(PQItem *d_pqs_, int maxSize_)
+__host__ __device__ void PriorityQueues<T>::AssignMemory(PQItem *d_pqs_, int maxSize_)
 {
 	d_pqs = d_pqs_;
 	maxSize = maxSize_;
 }
 
 template <typename T>
-__device__ void PriorityQueues<T>::push(T item, double key)
+__host__ __device__ void PriorityQueues<T>::push(T item, double key)
 {
 	if (tail - 1 >= maxSize) return;
 	++tail;
@@ -67,13 +67,13 @@ __device__ void PriorityQueues<T>::push(T item, double key)
 }
 
 template <typename T>
-__device__ T PriorityQueues<T>::top()
+__host__ __device__ T PriorityQueues<T>::top()
 {
 	return d_pqs[1].item;
 }
 
 template <typename T>
-__device__ T PriorityQueues<T>::pop()
+__host__ __device__ T PriorityQueues<T>::pop()
 {
 	T ret = d_pqs[1].item;
 	--tail;
@@ -86,7 +86,7 @@ __device__ T PriorityQueues<T>::pop()
 		minChildIdx = d_pqs[leftChildIdx].key < d_pqs[rightChildIdx].key ? leftChildIdx : rightChildIdx;
 	else if (leftChildIdx < tail)
 		minChildIdx = leftChildIdx;
-	
+
 	while (minChildIdx != -1 && d_pqs[minChildIdx].key < topItem.key)
 	{
 		d_pqs[curIdx] = d_pqs[minChildIdx];
@@ -100,24 +100,24 @@ __device__ T PriorityQueues<T>::pop()
 	}
 
 	d_pqs[curIdx] = topItem;
-	
+
 	return ret;
 }
 
 template <typename T>
-__device__ bool PriorityQueues<T>::empty()
+__host__ __device__ bool PriorityQueues<T>::empty()
 {
 	return tail == 1;
 }
 
 template <typename T>
-__device__ void PriorityQueues<T>::clear()
+__host__ __device__ void PriorityQueues<T>::clear()
 {
 	tail = 1;
 }
 
 template <typename T>
-__device__ int PriorityQueues<T>::size()
+__host__ __device__ int PriorityQueues<T>::size()
 {
 	return tail - 1;
 }

@@ -9,7 +9,7 @@ using namespace std;
 
 // This is the constructor of a class that has been exported.
 // see ICH.h for the class definition
-__device__ ICH::ICH()
+__host__ __device__ ICH::ICH()
 {
 	sourceVert = -1; sourcePointFace = -1;
 
@@ -24,18 +24,18 @@ __device__ ICH::ICH()
 	return;
 }
 
-__device__ ICH::~ICH()
+__host__ __device__ ICH::~ICH()
 {
 	return;
 }
 
-__device__ void ICH::AssignMesh(Mesh *mesh_)
+__host__ __device__ void ICH::AssignMesh(Mesh *mesh_)
 {
 	mesh = mesh_;
 }
 
-__device__ void ICH::AssignBuffers(SplitInfo *splitInfos_, VertInfo *vertInfos_, 
-	PriorityQueues< Window > winQ_, PriorityQueues< PseudoWindow > pseudoSrcQ_, 
+__host__ __device__ void ICH::AssignBuffers(SplitInfo *splitInfos_, VertInfo *vertInfos_,
+	PriorityQueues< Window > winQ_, PriorityQueues< PseudoWindow > pseudoSrcQ_,
 	Window* storedWindows_, unsigned *keptFaces_)
 {
 	splitInfos = splitInfos_;
@@ -46,24 +46,24 @@ __device__ void ICH::AssignBuffers(SplitInfo *splitInfos_, VertInfo *vertInfos_,
 	keptFaces = keptFaces_;
 }
 
-__device__ void ICH::AddSource(unsigned vertId)
+__host__ __device__ void ICH::AddSource(unsigned vertId)
 {
 	sourceVert = vertId;
 }
 
-__device__ void ICH::AddSource(unsigned faceId, Vector3D pos)
+__host__ __device__ void ICH::AddSource(unsigned faceId, Vector3D pos)
 {
 	sourcePointFace = faceId;
 	sourcePointPos = pos;
 }
 
-__device__ void ICH::AddFacesKeptWindow(unsigned faceId)
+__host__ __device__ void ICH::AddFacesKeptWindow(unsigned faceId)
 {
 	if (keptFacesIdx == keptFacesSize) return;
 	keptFaces[keptFacesIdx++] = faceId;
 }
 
-__device__ void ICH::Execute(int totalCalcVertNum_)
+__host__ __device__ void ICH::Execute(int totalCalcVertNum_)
 {
 	// Initialize
 	Initialize();
@@ -76,11 +76,11 @@ __device__ void ICH::Execute(int totalCalcVertNum_)
 		maxWinQSize = max(maxWinQSize, winQ.size());
 		maxPseudoQSize = max(maxPseudoQSize, pseudoSrcQ.size());
 
-		while (!winQ.empty() && winQ.top().pseudoSrcId < mesh->vertNum && 
+		while (!winQ.empty() && winQ.top().pseudoSrcId < mesh->vertNum &&
 			winQ.top().pseudoSrcBirthTime != vertInfos[winQ.top().pseudoSrcId].birthTime)
 			winQ.pop();
 
-		while (!pseudoSrcQ.empty() && winQ.top().pseudoSrcId < mesh->vertNum && 
+		while (!pseudoSrcQ.empty() && winQ.top().pseudoSrcId < mesh->vertNum &&
 			pseudoSrcQ.top().pseudoBirthTime != vertInfos[pseudoSrcQ.top().vertID].birthTime)
 			pseudoSrcQ.pop();
 
@@ -101,7 +101,7 @@ __device__ void ICH::Execute(int totalCalcVertNum_)
 						break;
 					}
 				}
-				if (found && storedWindowsIdx < storedWindowsSize) 
+				if (found && storedWindowsIdx < storedWindowsSize)
 					storedWindows[storedWindowsIdx++] = win;
 			}
 			PropagateWindow(win);
@@ -118,7 +118,7 @@ __device__ void ICH::Execute(int totalCalcVertNum_)
 	}
 }
 
-__device__ void ICH::OutputStatisticInfo()
+__host__ __device__ void ICH::OutputStatisticInfo()
 {
 	/*
 	cout << "Total generated window number: " << numOfWinGen << endl;
@@ -127,7 +127,7 @@ __device__ void ICH::OutputStatisticInfo()
 	*/
 }
 
-__device__ void ICH::BuildGeodesicPathTo(unsigned faceId, Vector3D pos, unsigned &srcId, 
+__host__ __device__ void ICH::BuildGeodesicPathTo(unsigned faceId, Vector3D pos, unsigned &srcId,
 	unsigned &nextToSrcEdge, double &nextToSrcX, unsigned &nextToDstEdge, double &nextToDstX)
 {
 	pathPassVert = false;
@@ -216,6 +216,8 @@ __device__ void ICH::BuildGeodesicPathTo(unsigned faceId, Vector3D pos, unsigned
 			minDist = curDist;
 		}
 	}
+
+	if (minDist == DBL_MAX) return;
 
 	if (!throughAWindow)
 	{
@@ -313,7 +315,7 @@ __device__ void ICH::BuildGeodesicPathTo(unsigned faceId, Vector3D pos, unsigned
 	}
 }
 
-__device__ void ICH::BuildGeodesicPathTo(unsigned vertId, unsigned &srcId, 
+__host__ __device__ void ICH::BuildGeodesicPathTo(unsigned vertId, unsigned &srcId,
 	unsigned &nextToSrcEdge, double &nextToSrcX, unsigned &nextToDstEdge, double &nextToDstX)
 {
 	// TODO: build geodesic path from vertex vertId to source
@@ -350,7 +352,7 @@ __device__ void ICH::BuildGeodesicPathTo(unsigned vertId, unsigned &srcId,
 			{
 				gkp.isVertex = true;
 				gkp.id = nextVert;
-				
+
 				if (nextToDstEdge == -1)
 				{
 					nextToDstEdge = mesh->edges[enterEdge].nextEdge;
@@ -459,12 +461,12 @@ __device__ void ICH::BuildGeodesicPathTo(unsigned vertId, unsigned &srcId,
 	srcId = curVert;
 }
 
-__device__ double ICH::GetDistanceTo(unsigned vertId)
+__host__ __device__ double ICH::GetDistanceTo(unsigned vertId)
 {
 	return vertInfos[vertId].dist;
 }
 
-__device__ void ICH::Clear()
+__host__ __device__ void ICH::Clear()
 {
 	winQ.clear(); pseudoSrcQ.clear();
 	for (int i = 0; i < mesh->edgeNum; ++i)
@@ -481,13 +483,17 @@ __device__ void ICH::Clear()
 	}
 	sourceVert = -1;
 	sourcePointFace = -1;
+
+	storedWindowsIdx = 0;
+	keptFacesIdx = 0;
+
 	numOfWinGen = 0;
 	maxWinQSize = 0;
 	maxPseudoQSize = 0;
 	totalCalcVertNum = 0;
 }
 
-__device__ void ICH::Initialize()
+__host__ __device__ void ICH::Initialize()
 {
 	if (sourceVert != -1)
 	{
@@ -569,7 +575,7 @@ __device__ void ICH::Initialize()
 	}
 }
 
-__device__ void ICH::PropagateWindow(const Window &win)
+__host__ __device__ void ICH::PropagateWindow(const Window &win)
 {
 	unsigned e0 = mesh->edges[win.edgeID].twinEdge;
 	if (e0 == -1) return;
@@ -613,7 +619,7 @@ __device__ void ICH::PropagateWindow(const Window &win)
 	{
 		double directDist = (v2 - src2D).length();
 		// ONE ANGLE, ONE SPLIT
-		if (directDist + win.pseudoSrcDist > splitInfos[e0].dist && 
+		if (directDist + win.pseudoSrcDist > splitInfos[e0].dist &&
 			(directDist + win.pseudoSrcDist) / splitInfos[e0].dist - 1.0 > RELATIVE_ERROR)
 		{
 			hasLeftChild = splitInfos[e0].x < interX;
@@ -675,7 +681,7 @@ __device__ void ICH::PropagateWindow(const Window &win)
 
 }
 
-__device__ void ICH::GenSubWinsForPseudoSrc(const PseudoWindow &pseudoWin)
+__host__ __device__ void ICH::GenSubWinsForPseudoSrc(const PseudoWindow &pseudoWin)
 {
 	unsigned startEdge, endEdge;
 	if (mesh->edges[vertInfos[pseudoWin.vertID].enterEdge].verts[0] == pseudoWin.vertID)
@@ -713,7 +719,7 @@ __device__ void ICH::GenSubWinsForPseudoSrc(const PseudoWindow &pseudoWin)
 	do
 	{
 		unsigned opVert = mesh->edges[curEdge].verts[1];
-		if (mesh->verts[opVert].angle < 2.0 * PI || 
+		if (mesh->verts[opVert].angle < 2.0 * PI ||
 			vertInfos[opVert].dist < pseudoWin.dist + mesh->edges[curEdge].edgeLen)
 		{
 			curEdge = mesh->edges[curEdge].twinEdge;
@@ -741,7 +747,7 @@ __device__ void ICH::GenSubWinsForPseudoSrc(const PseudoWindow &pseudoWin)
 	} while (curEdge != startEdge && curEdge != -1);
 }
 
-__device__ void ICH::GenSubWinsForPseudoSrcFromWindow(const PseudoWindow &pseudoWin, unsigned &startEdge, unsigned &endEdge)
+__host__ __device__ void ICH::GenSubWinsForPseudoSrcFromWindow(const PseudoWindow &pseudoWin, unsigned &startEdge, unsigned &endEdge)
 {
 	unsigned e0 = vertInfos[pseudoWin.vertID].enterEdge;
 	unsigned e1 = mesh->edges[e0].nextEdge;
@@ -806,7 +812,7 @@ __device__ void ICH::GenSubWinsForPseudoSrcFromWindow(const PseudoWindow &pseudo
 	}
 }
 
-__device__ void ICH::GenSubWinsForPseudoSrcFromPseudoSrc(const PseudoWindow &pseudoWin, unsigned &startEdge, unsigned &endEdge)
+__host__ __device__ void ICH::GenSubWinsForPseudoSrcFromPseudoSrc(const PseudoWindow &pseudoWin, unsigned &startEdge, unsigned &endEdge)
 {
 	unsigned pseudoSrc = pseudoWin.vertID;
 
@@ -852,7 +858,7 @@ __device__ void ICH::GenSubWinsForPseudoSrcFromPseudoSrc(const PseudoWindow &pse
 	}
 }
 
-__device__ bool ICH::IsValidWindow(const Window &win, bool isLeftChild)
+__host__ __device__ bool ICH::IsValidWindow(const Window &win, bool isLeftChild)
 {
 	// apply ICH's filter
 	unsigned v1 = mesh->edges[win.edgeID].verts[0];
@@ -867,15 +873,15 @@ __device__ bool ICH::IsValidWindow(const Window &win, bool isLeftChild)
 
 	Vector2D A(win.b0, 0.0), B(win.b1, 0.0);
 	Vector2D src2D = win.FlatenedSrc();
-	
 
-	if (win.pseudoSrcDist + (src2D - B).length() > vertInfos[v1].dist + win.b1 && 
+
+	if (win.pseudoSrcDist + (src2D - B).length() > vertInfos[v1].dist + win.b1 &&
 		(win.pseudoSrcDist + (src2D - B).length()) / (vertInfos[v1].dist + win.b1) - 1.0 > 0.0)
 	{
 		/*cout << "Filter 2 works..." << endl;*/
 		return false;
 	}
-	if (win.pseudoSrcDist + (src2D - A).length() > vertInfos[v2].dist + l0 - win.b0 && 
+	if (win.pseudoSrcDist + (src2D - A).length() > vertInfos[v2].dist + l0 - win.b0 &&
 		(win.pseudoSrcDist + (src2D - A).length()) / (vertInfos[v2].dist + l0 - win.b0) - 1.0 > 0.0)
 	{
 		/*cout << "Filter 2 works..." << endl;*/
@@ -883,7 +889,7 @@ __device__ bool ICH::IsValidWindow(const Window &win, bool isLeftChild)
 	}
 	if (isLeftChild)
 	{
-		if (win.pseudoSrcDist + (src2D - A).length() > vertInfos[v3].dist + (p3 - A).length() && 
+		if (win.pseudoSrcDist + (src2D - A).length() > vertInfos[v3].dist + (p3 - A).length() &&
 			(win.pseudoSrcDist + (src2D - A).length()) / (vertInfos[v3].dist + (p3 - A).length()) - 1.0 > 0.0)
 		{
 			/*cout << "Filter 2 works..." << endl;*/
@@ -892,7 +898,7 @@ __device__ bool ICH::IsValidWindow(const Window &win, bool isLeftChild)
 	}
 	else
 	{
-		if (win.pseudoSrcDist + (src2D - B).length() > vertInfos[v3].dist + (p3 - B).length() && 
+		if (win.pseudoSrcDist + (src2D - B).length() > vertInfos[v3].dist + (p3 - B).length() &&
 			(win.pseudoSrcDist + (src2D - B).length()) / (vertInfos[v3].dist + (p3 - B).length()) - 1.0 > RELATIVE_ERROR)
 		{
 			/*cout << "Filter 2 works..." << endl;*/
@@ -902,10 +908,10 @@ __device__ bool ICH::IsValidWindow(const Window &win, bool isLeftChild)
 	return true;
 }
 
-__device__ void ICH::BuildWindow(const Window &fatherWin,
-	unsigned edge, 
-	double t0, double t1, 
-	const Vector2D &v0, const Vector2D &v1, 
+__host__ __device__ void ICH::BuildWindow(const Window &fatherWin,
+	unsigned edge,
+	double t0, double t1,
+	const Vector2D &v0, const Vector2D &v1,
 	Window &win)
 {
 	Vector2D src2D = fatherWin.FlatenedSrc();
@@ -920,7 +926,7 @@ __device__ void ICH::BuildWindow(const Window &fatherWin,
 	win.level = fatherWin.level + 1;
 }
 
-__device__ double ICH::Intersect(const Vector2D &v0, const Vector2D &v1, const Vector2D &p0, const Vector2D &p1)
+__host__ __device__ double ICH::Intersect(const Vector2D &v0, const Vector2D &v1, const Vector2D &p0, const Vector2D &p1)
 {
 	double a00 = p0.x - p1.x, a01 = v1.x - v0.x, b0 = v1.x - p1.x;
 	double a10 = p0.y - p1.y, a11 = v1.y - v0.y, b1 = v1.y - p1.y;

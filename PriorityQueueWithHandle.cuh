@@ -92,7 +92,7 @@ __host__ __device__ T PriorityQueuesWithHandle<T>::pop()
 		minChildIdx = d_pqs[leftChildIdx].key < d_pqs[rightChildIdx].key ? leftChildIdx : rightChildIdx;
 	else if (leftChildIdx < tail)
 		minChildIdx = leftChildIdx;
-	
+
 	while (minChildIdx != -1 && d_pqs[minChildIdx].key < topItem.key)
 	{
 		d_pqs[curIdx] = d_pqs[minChildIdx];
@@ -109,7 +109,7 @@ __host__ __device__ T PriorityQueuesWithHandle<T>::pop()
 
 	d_pqs[curIdx] = topItem;
 	*(d_pqs[curIdx].backHandle) = curIdx;
-	
+
 	return ret;
 }
 

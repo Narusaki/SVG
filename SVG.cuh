@@ -7,7 +7,7 @@
 #include "ICH.cuh"
 #include "InitialValueGeodesic.cuh"
 
-#define BLOCK_NUM 8
+#define BLOCK_NUM 16
 #define THREAD_NUM 128
 
 #define WINPQ_SIZE 1024
@@ -37,7 +37,7 @@ public:
 
 	enum SEARCHTYPE
 	{
-		ASTAR, DIJKSTRA, 
+		ASTAR, DIJKSTRA,
 	};
 
 public:
@@ -45,8 +45,8 @@ public:
 	typedef PriorityQueues<ICH::Window>::PQItem PQWinItem;
 	typedef PriorityQueues<ICH::PseudoWindow>::PQItem PQPseudoWinItem;
 
-	SVG();
-	~SVG();
+	__host__ __device__ SVG();
+	__host__ __device__ ~SVG();
 
 	void AssignMesh(Mesh *mesh_, Mesh *d_mesh_);
 	void SetParameters(int K_);
@@ -59,19 +59,28 @@ public:
 	// must invoke this method before searching SVG on host
 	void CopySVGToHost();
 
-	__host__ __device__ void SolveSSSD(int s, int t, Mesh *mesh, 
+	__host__ __device__ void SolveSSSD(int s, int t, Mesh mesh,
 		GraphDistInfo * graphDistInfos, PriorityQueuesWithHandle<int> pq);
 
-	__host__ __device__ void SolveMSMD(int *sources, int Ns, int *destinations, int Nd, Mesh *mesh,
+	__host__ __device__ void SolveSSSD(int f0, Vector3D p0, int f1, Vector3D p1, Mesh mesh,
+		ICH::SplitInfo *d_splitInfos, ICH::VertInfo *d_vertInfos,
+		PQWinItem *winPQBuf, PQPseudoWinItem *pseudoWinPQBuf,
+		ICH::Window *storedWindows, unsigned int *keptFaces,
+		GraphDistInfo * graphDistInfos, PriorityQueuesWithHandle<int> pq,
+		SVGNode *res, int *lastVert);
+
+	__host__ __device__ void SolveMSAD(int *sources, double *sourceWeights, int Ns,
+		Mesh mesh,
 		GraphDistInfo * graphDistInfos, PriorityQueuesWithHandle<int> pq);
 
 private:
 	// Astar algorithm, degenerate to Dijkstra if choose the so-far distance only as priority
 	__host__ __device__ void Astar(Mesh *mesh, int t, GraphDistInfo * graphDistInfos, PriorityQueuesWithHandle<int> pq);
 
-private:
+public:
 	Mesh *mesh, *d_mesh;
 
+private:
 	// priority queues for Windows
 	PQWinItem *d_winPQs;
 	// priority queues for Pseudo Windows
@@ -94,9 +103,9 @@ private:
 	int K;
 };
 
-__global__ void constructSVG(Mesh mesh, int K, 
-	SVG::PQWinItem *d_winPQs, SVG::PQPseudoWinItem *d_pseudoWinPQs, 
-	ICH::SplitInfo *d_splitInfoBuf, ICH::VertInfo *d_vertInfoBuf, 
-	ICH::Window *d_storedWindowsBuf, unsigned *d_keptFacesBuf, 
+__global__ void constructSVG(Mesh mesh, int K,
+	SVG::PQWinItem *d_winPQs, SVG::PQPseudoWinItem *d_pseudoWinPQs,
+	ICH::SplitInfo *d_splitInfoBuf, ICH::VertInfo *d_vertInfoBuf,
+	ICH::Window *d_storedWindowsBuf, unsigned *d_keptFacesBuf,
 	SVG::SVGNode *d_svg, int *d_svg_tails);
 #endif

@@ -58,7 +58,7 @@ bool Mesh::LoadFromFile(const char *fileName)
 			facesVec.push_back(face);
 		}
 	}
-	
+
 	edgesVec.resize(facesVec.size() * 3);
 
 	int edgeIdx = 0;
@@ -68,7 +68,7 @@ bool Mesh::LoadFromFile(const char *fileName)
 	{
 		for (int j = 0; j < 3; ++j)
 		{
-			int v0 = facesVec[i].verts[j], v1 = facesVec[i].verts[(j+1)%3];
+			int v0 = facesVec[i].verts[j], v1 = facesVec[i].verts[(j + 1) % 3];
 			edgesVec[edgeIdx].verts[0] = v0; edgesVec[edgeIdx].verts[1] = v1;
 			edgesVec[edgeIdx].edgeLen = (vertsVec[v0].pos - vertsVec[v1].pos).length();
 			edgesVec[edgeIdx].nextEdge = i * 3 + (j + 1) % 3;

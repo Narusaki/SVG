@@ -6,25 +6,25 @@
 
 using namespace std;
 
-__global__ void constructSVG(Mesh mesh, int K, 
+__global__ void constructSVG(Mesh mesh, int K,
 	SVG::PQWinItem *d_winPQs, SVG::PQPseudoWinItem *d_pseudoWinPQs,
-	ICH::SplitInfo *d_splitInfoBuf, ICH::VertInfo *d_vertInfoBuf, 
-	ICH::Window *d_storedWindowsBuf, unsigned *d_keptFacesBuf, 
+	ICH::SplitInfo *d_splitInfoBuf, ICH::VertInfo *d_vertInfoBuf,
+	ICH::Window *d_storedWindowsBuf, unsigned *d_keptFacesBuf,
 	SVG::SVGNode *d_svg, int *d_svg_tails)
 {
 	int idx = threadIdx.x + blockIdx.x * blockDim.x;
 	int totalThreadNum = blockDim.x * gridDim.x;
 
-	PriorityQueues<ICH::Window> winPQ(WINPQ_SIZE-1);
-	PriorityQueues<ICH::PseudoWindow> pseudoWinPQ(PSEUDOWINPQ_SIZE-1);
-	winPQ.AssignMemory(d_winPQs + idx * WINPQ_SIZE, WINPQ_SIZE-1); 
-	pseudoWinPQ.AssignMemory(d_pseudoWinPQs + idx * PSEUDOWINPQ_SIZE, PSEUDOWINPQ_SIZE-1);
+	PriorityQueues<ICH::Window> winPQ(WINPQ_SIZE - 1);
+	PriorityQueues<ICH::PseudoWindow> pseudoWinPQ(PSEUDOWINPQ_SIZE - 1);
+	winPQ.AssignMemory(d_winPQs + idx * WINPQ_SIZE, WINPQ_SIZE - 1);
+	pseudoWinPQ.AssignMemory(d_pseudoWinPQs + idx * PSEUDOWINPQ_SIZE, PSEUDOWINPQ_SIZE - 1);
 
 	ICH ich;
-	ich.AssignMesh(&mesh); 
-	ich.AssignBuffers(d_splitInfoBuf + idx * mesh.edgeNum, 
-		d_vertInfoBuf + idx * mesh.vertNum, 
-		winPQ, pseudoWinPQ, 
+	ich.AssignMesh(&mesh);
+	ich.AssignBuffers(d_splitInfoBuf + idx * mesh.edgeNum,
+		d_vertInfoBuf + idx * mesh.vertNum,
+		winPQ, pseudoWinPQ,
 		d_storedWindowsBuf + idx * STORED_WIN_BUF_SIZE, d_keptFacesBuf + idx * KEPT_FACE_SIZE);
 
 	InitialValueGeodesic initGeodesic;
@@ -35,7 +35,7 @@ __global__ void constructSVG(Mesh mesh, int K,
 		// TODO: run ICH
 		ich.Clear();
 		ich.AddSource(i);
- 		ich.Execute(K);
+		ich.Execute(K);
 
 		d_svg_tails[i] = 0;
 		SVG::SVGNode *d_cur_svg = d_svg + K * i;
@@ -74,24 +74,24 @@ __global__ void constructSVG(Mesh mesh, int K,
 			if (d_svg_tails[i] == K) break;
 		}
 
-// 		InitialValueGeodesic::GeodesicKeyPoint dstPoint;
-// 		if (nextToSrcEdge != -1 && !ich.pathPassVert)
-// 		{
-// 			initGeodesic.AssignLength(ich.GetDistanceTo(100));
-// 			initGeodesic.AssignStartPoint(i);
-// 			initGeodesic.AssignFirstKeyPoint(
-// 				mesh.edges[nextToSrcEdge].twinEdge,
-// 				mesh.edges[nextToSrcEdge].edgeLen - nextSrcX);
-// 			dstPoint = initGeodesic.BuildGeodesicPath();
-// 		}
-// 		else
-// 		{
-// 			dstPoint.isInterior = true;
-// 			dstPoint.faceIndex = -1;
-// 			dstPoint.facePos3D = Vector3D();
-// 		}
+		// 		InitialValueGeodesic::GeodesicKeyPoint dstPoint;
+		// 		if (nextToSrcEdge != -1 && !ich.pathPassVert)
+		// 		{
+		// 			initGeodesic.AssignLength(ich.GetDistanceTo(100));
+		// 			initGeodesic.AssignStartPoint(i);
+		// 			initGeodesic.AssignFirstKeyPoint(
+		// 				mesh.edges[nextToSrcEdge].twinEdge,
+		// 				mesh.edges[nextToSrcEdge].edgeLen - nextSrcX);
+		// 			dstPoint = initGeodesic.BuildGeodesicPath();
+		// 		}
+		// 		else
+		// 		{
+		// 			dstPoint.isInterior = true;
+		// 			dstPoint.faceIndex = -1;
+		// 			dstPoint.facePos3D = Vector3D();
+		// 		}
 	}
-	
+
 }
 
 SVG::SVG()
@@ -119,7 +119,7 @@ bool SVG::Allocation()
 {
 	// allocation memories for PriorityQueues
 
-	int totalThreadNum = THREAD_NUM * BLOCK_NUM; 
+	int totalThreadNum = THREAD_NUM * BLOCK_NUM;
 
 	HANDLE_ERROR(cudaMalloc((void**)&d_winPQs, totalThreadNum * WINPQ_SIZE * sizeof(PQWinItem)));
 	HANDLE_ERROR(cudaMalloc((void**)&d_pseudoWinPQs, totalThreadNum * PSEUDOWINPQ_SIZE * sizeof(PQPseudoWinItem)));
@@ -158,9 +158,9 @@ void SVG::FreeSVGStructure()
 void SVG::ConstructSVG()
 {
 	clock_t start = clock();
-	constructSVG <<<BLOCK_NUM, THREAD_NUM >>>(*d_mesh, K, 
-		d_winPQs, d_pseudoWinPQs, d_splitInfoBuf, d_vertInfoBuf, 
-		d_storedWindowsBuf, d_keptFacesBuf, 
+	constructSVG << <BLOCK_NUM, THREAD_NUM >> >(*d_mesh, K,
+		d_winPQs, d_pseudoWinPQs, d_splitInfoBuf, d_vertInfoBuf,
+		d_storedWindowsBuf, d_keptFacesBuf,
 		d_svg, d_svg_tails);
 	// TODO: organize the constructed SVG
 	HANDLE_ERROR(cudaGetLastError());
@@ -184,38 +184,139 @@ void SVG::CopySVGToHost()
 
 	HANDLE_ERROR(cudaMemcpy(svg, d_svg, mesh->vertNum * K * sizeof(SVGNode), cudaMemcpyDeviceToHost));
 	HANDLE_ERROR(cudaMemcpy(svg_tails, d_svg_tails, mesh->vertNum * sizeof(int), cudaMemcpyDeviceToHost));
-// 	cout << mesh->vertNum << endl;
-// 	for (int j = 0; j < mesh->vertNum; ++j)
-// 	{
-// 		cout << "Node " << j << " degree: " << svg_tails[j] << endl;
-// 		SVGNode *curSVGList = svg + K * j;
-// 		for (int i = 0; i < svg_tails[j]; ++i)
-// 		{
-// 			printf("%d %f %d %f %d %f\n", curSVGList[i].adjNode, curSVGList[i].geodDist, 
-// 				curSVGList[i].nextToSrcEdge, curSVGList[i].nextToSrcX, 
-// 				curSVGList[i].nextToDstEdge, curSVGList[i].nextToDstX);
-// 			system("pause");
-// 		}
-// 	}
+	// 	cout << mesh->vertNum << endl;
+	// 	for (int j = 0; j < mesh->vertNum; ++j)
+	// 	{
+	// 		cout << "Node " << j << " degree: " << svg_tails[j] << endl;
+	// 		SVGNode *curSVGList = svg + K * j;
+	// 		for (int i = 0; i < svg_tails[j]; ++i)
+	// 		{
+	// 			printf("%d %f %d %f %d %f\n", curSVGList[i].adjNode, curSVGList[i].geodDist, 
+	// 				curSVGList[i].nextToSrcEdge, curSVGList[i].nextToSrcX, 
+	// 				curSVGList[i].nextToDstEdge, curSVGList[i].nextToDstX);
+	// 			system("pause");
+	// 		}
+	// 	}
 }
 
-__host__ __device__ void SVG::SolveSSSD(int s, int t, Mesh *mesh, GraphDistInfo * graphDistInfos, PriorityQueuesWithHandle<int> pq)
+__host__ __device__ void SVG::SolveSSSD(int s, int t, Mesh mesh, GraphDistInfo * graphDistInfos, PriorityQueuesWithHandle<int> pq)
 {
 	// TODO: use Astar algorithm to search dist&path to t; use Euclidean dist as heuristic prediction
 	// TODO: initialize graphDistInfos & pq
 	searchType = ASTAR;
 	graphDistInfos[s].dist = 0.0;
 	graphDistInfos[s].pathParentIndex = -1;
-	pq.push(s, &graphDistInfos[s].indexInPQ, 0.0 + (mesh->verts[s].pos - mesh->verts[t].pos).length());
-	Astar(mesh, t, graphDistInfos, pq);
+	pq.push(s, &graphDistInfos[s].indexInPQ, 0.0 + (mesh.verts[s].pos - mesh.verts[t].pos).length());
+	Astar(&mesh, t, graphDistInfos, pq);
 }
 
-__host__ __device__ void SVG::SolveMSMD(int *sources, int Ns, int *destinations, int Nd, Mesh *mesh, GraphDistInfo * graphDistInfos, PriorityQueuesWithHandle<int> pq)
+__host__ __device__ void SVG::SolveSSSD(int f0, Vector3D p0, int f1, Vector3D p1, Mesh mesh,
+	ICH::SplitInfo *d_splitInfos, ICH::VertInfo *d_vertInfos,
+	PQWinItem *winPQBuf, PQPseudoWinItem *pseudoWinPQBuf,
+	ICH::Window *storedWindows, unsigned int *keptFaces,
+	GraphDistInfo * graphDistInfos, PriorityQueuesWithHandle<int> pq,
+	SVGNode *res, int *saddleVertNearDst)
+{
+	// TODO: run ICH on the two arbitrary points separately, and run a special single-source-single-destination algorithm
+	searchType = DIJKSTRA;
+	ICH ich;
+
+	PriorityQueues<ICH::Window> local_winPQ(WINPQ_SIZE - 1);
+	PriorityQueues<ICH::PseudoWindow> local_pseudoWinPQ(PSEUDOWINPQ_SIZE - 1);
+	local_winPQ.AssignMemory(winPQBuf, WINPQ_SIZE - 1);
+	local_pseudoWinPQ.AssignMemory(pseudoWinPQBuf, PSEUDOWINPQ_SIZE - 1);
+
+	ich.AssignMesh(&mesh);
+	ich.AssignBuffers(d_splitInfos, d_vertInfos, local_winPQ, local_pseudoWinPQ, storedWindows, keptFaces);
+
+	ich.Clear();
+	ich.AddSource(f0, p0);
+	ich.AddFacesKeptWindow(f1);
+	ich.Execute(K);
+
+	unsigned int srcId;
+	ich.BuildGeodesicPathTo(f1, p1, srcId, res->nextToSrcEdge, res->nextToSrcX, res->nextToDstEdge, res->nextToDstX);
+	if (res->nextToSrcEdge != -1) return;
+
+	for (int i = 0; i < mesh.vertNum; ++i)
+	{
+		if (d_vertInfos[i].dist == DBL_MAX) continue;
+		graphDistInfos[i].dist = d_vertInfos[i].dist;
+		graphDistInfos[i].pathParentIndex = -1;
+		pq.push(i, &graphDistInfos[i].indexInPQ, d_vertInfos[i].dist);
+	}
+	Astar(&mesh, -1, graphDistInfos, pq);
+	// TODO: how to virtually link the dst-surface-point into the SVG?
+	ich.Clear();
+	ich.AddSource(f1, p1);
+	ich.Execute(K);
+
+	// find the minimal dist and corresponding last-passed vertex
+	double minDist = DBL_MAX;
+	unsigned int lastVertId = -1;
+	for (int i = 0; i < mesh.vertNum; ++i)
+	{
+		if (d_vertInfos[i].dist == DBL_MAX) continue;
+		if (graphDistInfos[i].dist + d_vertInfos[i].dist >= minDist) continue;
+		minDist = graphDistInfos[i].dist + d_vertInfos[i].dist;
+		lastVertId = i;
+	}
+	res->geodDist = minDist;
+	*saddleVertNearDst = lastVertId;
+
+	unsigned int nextToSrcEdge, nextToDstEdge;
+	double nextToSrcX, nextToDstX;
+	// set the nextToDstEdge and nextToDstX value (convert to the twin edge)
+	ich.BuildGeodesicPathTo(lastVertId, srcId, nextToDstEdge, nextToDstX, res->nextToSrcEdge, res->nextToSrcX);
+	if (nextToDstEdge == -1)
+	{
+		nextToDstEdge = res->nextToSrcEdge;
+		nextToDstX = res->nextToDstX;
+	}
+	nextToDstEdge = mesh.edges[nextToDstEdge].twinEdge;
+	nextToDstX = mesh.edges[nextToDstEdge].edgeLen - nextToDstX;
+
+	// find the first-passed vertex
+	int parent = graphDistInfos[lastVertId].pathParentIndex;
+	while (parent != -1)
+	{
+		lastVertId = parent;
+		parent = graphDistInfos[lastVertId].pathParentIndex;
+	}
+
+	ich.Clear();
+	ich.AddSource(f0, p0);
+	ich.Execute(K);
+
+	// this IF seems to be not necessary ...
+	if (d_vertInfos[lastVertId].dist != DBL_MAX)
+	{
+		ich.BuildGeodesicPathTo(lastVertId, srcId, nextToSrcEdge, nextToSrcX, res->nextToDstEdge, res->nextToDstX);
+		if (nextToSrcEdge == -1)
+		{
+			nextToSrcEdge = res->nextToDstEdge;
+			nextToSrcX = res->nextToDstX;
+		}
+
+		res->nextToSrcEdge = nextToSrcEdge;
+		res->nextToSrcX = nextToSrcX;
+		res->nextToDstEdge = nextToDstEdge;
+		res->nextToDstX = nextToDstX;
+	}
+}
+
+__host__ __device__ void SVG::SolveMSAD(int *sources, double *sourceWeights, int Ns, Mesh mesh, GraphDistInfo * graphDistInfos, PriorityQueuesWithHandle<int> pq)
 {
 	// TODO: use Dijkstra algorithm to search min-dist&path to destinations
 	// TODO: initialize graphDistInfos & pq
 	searchType = DIJKSTRA;
-	Astar(mesh, -1, graphDistInfos, pq);
+	for (int i = 0; i < Ns; ++i)
+	{
+		graphDistInfos[sources[i]].dist = sourceWeights[i];
+		graphDistInfos[sources[i]].pathParentIndex = -1;
+		pq.push(sources[i], &graphDistInfos[sources[i]].indexInPQ, sourceWeights[i]);
+	}
+	Astar(&mesh, -1, graphDistInfos, pq);
 }
 
 __host__ __device__ void SVG::Astar(Mesh *mesh, int t, GraphDistInfo * graphDistInfos, PriorityQueuesWithHandle<int> pq)

@@ -56,13 +56,13 @@ __device__ InitialValueGeodesic::GeodesicKeyPoint InitialValueGeodesic::BuildGeo
 	// collect adjacent faces
 	GeodesicKeyPoint keyPoint;
 	Vector2D src2D;
-	
+
 	/*if (firstKeyPoint.edgeIndex != -1)*/
-		keyPoint = firstKeyPoint;
-// 	else if (startPointIndex != -1)
-// 		keyPoint = ProjectDirectionOnto1RingNeighOfSource();
-// 	else
-// 		keyPoint = ProjectDirectionOntoFace();
+	keyPoint = firstKeyPoint;
+	// 	else if (startPointIndex != -1)
+	// 		keyPoint = ProjectDirectionOnto1RingNeighOfSource();
+	// 	else
+	// 		keyPoint = ProjectDirectionOntoFace();
 	Vector2D keyPoint2D = Vector2D(keyPoint.pos, 0.0);
 
 	// make sure the 2d position of the source
@@ -87,10 +87,10 @@ __device__ InitialValueGeodesic::GeodesicKeyPoint InitialValueGeodesic::BuildGeo
 		do
 		{
 			Vector3D p0 = mesh->verts[mesh->faces[startPointFaceIndex].verts[i]].pos;
-			Vector3D p1 = mesh->verts[mesh->faces[startPointFaceIndex].verts[(i+1)%3]].pos;
+			Vector3D p1 = mesh->verts[mesh->faces[startPointFaceIndex].verts[(i + 1) % 3]].pos;
 			Vector3D signedAreaVector = (p0 - startPointPos) ^ (p1 - startPointPos);
 			signedAreas[(i - IStart + 2) % 3] = signedAreaVector.length();
-			totalArea += signedAreas[(i-IStart+2)%3];
+			totalArea += signedAreas[(i - IStart + 2) % 3];
 			i = (i + 1) % 3;
 		} while (i != IStart);
 		for (unsigned i = 0; i < 3; ++i) lambda[i] = signedAreas[i] / totalArea;
@@ -228,7 +228,7 @@ __device__ InitialValueGeodesic::GeodesicKeyPoint InitialValueGeodesic::BuildGeo
 	if (curLen > geodesicLength)
 	{
 		Vector3D p0, p1;
-		
+
 		Vector3D v0 = mesh->verts[mesh->edges[keyPoint.edgeIndex].verts[0]].pos;
 		Vector3D v1 = mesh->verts[mesh->edges[keyPoint.edgeIndex].verts[1]].pos;
 		Vector3D univ = v1 - v0; univ.normalize(); p1 = v0 + univ * keyPoint.pos;
@@ -238,7 +238,7 @@ __device__ InitialValueGeodesic::GeodesicKeyPoint InitialValueGeodesic::BuildGeo
 			v0 = mesh->verts[mesh->edges[prevKeyPoint.edgeIndex].verts[0]].pos;
 			v1 = mesh->verts[mesh->edges[prevKeyPoint.edgeIndex].verts[1]].pos;
 			univ = v1 - v0; univ.normalize(); p0 = v0 + univ * prevKeyPoint.pos;
-			
+
 		}
 		else
 		{

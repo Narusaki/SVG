@@ -32,8 +32,8 @@ public:
 class Mesh
 {
 public:
-	Mesh();
-	~Mesh();
+	__host__ __device__ Mesh();
+	__host__ __device__ ~Mesh();
 
 	bool LoadFromFile(const char *fileName);
 	bool copyToGPU(Mesh *d_mesh);		// note that d_mesh should still be a host variable
