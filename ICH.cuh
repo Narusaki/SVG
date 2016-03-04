@@ -3,6 +3,7 @@
 
 #include "Mesh.cuh"
 #include <vector>
+#include "MyHashTable.cuh"
 #include "PriorityQueue.cuh"
 #include <math.h>
 
@@ -87,11 +88,15 @@ public:
 	};
 
 public:
+	typedef MyHashTable<SplitInfo>::HashItem SplitItem;
+	typedef MyHashTable<VertInfo>::HashItem VertItem;
+
 	__host__ __device__ ICH();
 	__host__ __device__ ~ICH();
 
 	__host__ __device__ void AssignMesh(Mesh *mesh_);
-	__host__ __device__ void AssignBuffers(SplitInfo *splitInfos_, VertInfo *vertInfos_,
+	__host__ __device__ void AssignBuffers(SplitItem *splitInfos_, unsigned splitInfoSize, 
+		VertItem *vertInfos_, unsigned vertInfoSize, 
 		PriorityQueues< Window > winQ_, PriorityQueues< PseudoWindow > pseudoSrcQ_,
 		Window* storedWindows_, unsigned *keptFaces_);
 	__host__ __device__ void AddSource(unsigned vertId);
@@ -127,8 +132,8 @@ public:
 	// all these fields need to be allocated first (except for the PriorityQueues), 
 	// and then to be assigned into
 	Mesh *mesh;
-	SplitInfo *splitInfos;
-	VertInfo *vertInfos;
+	MyHashTable<SplitInfo> splitInfos;
+	MyHashTable<VertInfo> vertInfos;
 	PriorityQueues< Window > winQ;
 	PriorityQueues< PseudoWindow > pseudoSrcQ;
 	unsigned sourceVert;

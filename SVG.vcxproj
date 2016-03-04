@@ -111,6 +111,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     <CudaCompile>
       <TargetMachinePlatform>64</TargetMachinePlatform>
       <GenerateRelocatableDeviceCode>true</GenerateRelocatableDeviceCode>
+      <Runtime>InheritFromHost</Runtime>
     </CudaCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -161,6 +162,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     <CudaCompile>
       <TargetMachinePlatform>64</TargetMachinePlatform>
       <GenerateRelocatableDeviceCode>true</GenerateRelocatableDeviceCode>
+      <Runtime>InheritFromHost</Runtime>
     </CudaCompile>
     <CudaLink />
   </ItemDefinitionGroup>
@@ -179,6 +181,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     <ClInclude Include="ICH.cuh" />
     <ClInclude Include="InitialValueGeodesic.cuh" />
     <ClInclude Include="Mesh.cuh" />
+    <ClInclude Include="MyHashTable.cuh" />
     <ClInclude Include="PriorityQueue.cuh" />
     <ClInclude Include="PriorityQueueWithHandle.cuh" />
     <ClInclude Include="SVG.cuh" />

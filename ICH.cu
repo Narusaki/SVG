@@ -13,7 +13,7 @@ __host__ __device__ ICH::ICH()
 {
 	sourceVert = -1; sourcePointFace = -1;
 
-	mesh = NULL; splitInfos = NULL; vertInfos = NULL;
+	mesh = NULL; 
 	storedWindows = NULL; keptFaces = NULL;
 	storedWindowsIdx = 0; keptFacesIdx = 0;
 
@@ -34,12 +34,13 @@ __host__ __device__ void ICH::AssignMesh(Mesh *mesh_)
 	mesh = mesh_;
 }
 
-__host__ __device__ void ICH::AssignBuffers(SplitInfo *splitInfos_, VertInfo *vertInfos_,
+__host__ __device__ void ICH::AssignBuffers(SplitItem *splitInfos_, unsigned splitInfoSize,
+	VertItem *vertInfos_, unsigned vertInfoSize,
 	PriorityQueues< Window > winQ_, PriorityQueues< PseudoWindow > pseudoSrcQ_,
 	Window* storedWindows_, unsigned *keptFaces_)
 {
-	splitInfos = splitInfos_;
-	vertInfos = vertInfos_;
+	splitInfos = MyHashTable<SplitInfo>(splitInfoSize, splitInfos_);
+	vertInfos = MyHashTable<VertInfo>(vertInfoSize, vertInfos_);
 	winQ = winQ_;
 	pseudoSrcQ = pseudoSrcQ_;
 	storedWindows = storedWindows_;
@@ -77,11 +78,11 @@ __host__ __device__ void ICH::Execute(int totalCalcVertNum_)
 		maxPseudoQSize = max(maxPseudoQSize, pseudoSrcQ.size());
 
 		while (!winQ.empty() && winQ.top().pseudoSrcId < mesh->vertNum &&
-			winQ.top().pseudoSrcBirthTime != vertInfos[winQ.top().pseudoSrcId].birthTime)
+			winQ.top().pseudoSrcBirthTime != vertInfos.get(winQ.top().pseudoSrcId).birthTime)
 			winQ.pop();
 
 		while (!pseudoSrcQ.empty() && winQ.top().pseudoSrcId < mesh->vertNum &&
-			pseudoSrcQ.top().pseudoBirthTime != vertInfos[pseudoSrcQ.top().vertID].birthTime)
+			pseudoSrcQ.top().pseudoBirthTime != vertInfos.get(pseudoSrcQ.top().vertID).birthTime)
 			pseudoSrcQ.pop();
 
 		if (!winQ.empty() && (pseudoSrcQ.empty() || winQ.top().minDist < pseudoSrcQ.top().dist))
@@ -116,6 +117,18 @@ __host__ __device__ void ICH::Execute(int totalCalcVertNum_)
 		if (totalCalcVertNum_ != -1 && totalCalcVertNum >= totalCalcVertNum_)
 			break;
 	}
+
+	auto vertData = vertInfos.Data();
+	unsigned cnt = 0;
+	for (int i = 0; i < vertInfos.Size(); ++i)
+		if (vertData[i].index != -1) ++cnt;
+	cout << "Vertex info hash-table size: " << cnt << "/" << vertInfos.Size() << endl;
+	
+	auto splitData = splitInfos.Data();
+	cnt = 0;
+	for (int i = 0; i < splitInfos.Size(); ++i)
+		if (splitData[i].index != -1) ++cnt;
+	cout << "Split info hash-table: " << cnt << "/" << splitInfos.Size() << endl;
 }
 
 __host__ __device__ void ICH::OutputStatisticInfo()
@@ -208,7 +221,7 @@ __host__ __device__ void ICH::BuildGeodesicPathTo(unsigned faceId, Vector3D pos,
 		unsigned opVert = mesh->edges[mesh->faces[faceId].edges[i]].verts[0];
 		if (mesh->verts[opVert].angle < 2.0 * PI) continue;
 
-		double curDist = (pos - mesh->verts[opVert].pos).length() + vertInfos[opVert].dist;
+		double curDist = (pos - mesh->verts[opVert].pos).length() + vertInfos.get(opVert).dist;
 		if (curDist < minDist)
 		{
 			throughAWindow = false;
@@ -301,7 +314,7 @@ __host__ __device__ void ICH::BuildGeodesicPathTo(unsigned faceId, Vector3D pos,
 			dstVert = minWin.pseudoSrcId;
 			srcId = dstVert;
 		}
-		else if (vertInfos[opVert].dist != 0.0)
+		else if (vertInfos.get(opVert).dist != 0.0)
 		{
 			gkp.isVertex = true;
 			gkp.id = opVert;
@@ -323,9 +336,9 @@ __host__ __device__ void ICH::BuildGeodesicPathTo(unsigned vertId, unsigned &src
 	nextToSrcEdge = -1; nextToDstEdge = -1;
 	unsigned curVert = vertId;
 	GeodesicKeyPoint gkp;
-	while (vertInfos[curVert].dist != 0.0)
+	while (vertInfos.get(curVert).dist != 0.0)
 	{
-		unsigned enterEdge = vertInfos[curVert].enterEdge;
+		unsigned enterEdge = vertInfos.get(curVert).enterEdge;
 		if (enterEdge == -1)
 		{
 			// trace back to an arbitrary point
@@ -348,7 +361,7 @@ __host__ __device__ void ICH::BuildGeodesicPathTo(unsigned vertId, unsigned &src
 		{
 			// next key point is still a vertex
 			unsigned nextVert = mesh->edges[enterEdge].verts[1];
-			if (vertInfos[nextVert].dist != 0.0)
+			if (vertInfos.get(nextVert).dist != 0.0)
 			{
 				gkp.isVertex = true;
 				gkp.id = nextVert;
@@ -371,7 +384,7 @@ __host__ __device__ void ICH::BuildGeodesicPathTo(unsigned vertId, unsigned &src
 		{
 			// next key point is on an edge
 			gkp.isVertex = false;
-			gkp.id = enterEdge; gkp.pos = splitInfos[enterEdge].x;
+			gkp.id = enterEdge; gkp.pos = splitInfos.get(enterEdge).x;
 
 			if (nextToDstEdge == -1)
 			{
@@ -393,9 +406,9 @@ __host__ __device__ void ICH::BuildGeodesicPathTo(unsigned vertId, unsigned &src
 			lastPoint.y = -sqrt(fabs(l1*l1 - lastPoint.x*lastPoint.x));
 			curPoint.x = l0 - gkp.pos; curPoint.y = 0.0;
 
-			while (splitInfos[enterEdge].pseudoSrcId < mesh->vertNum &&
-				opVert != splitInfos[enterEdge].pseudoSrcId ||
-				splitInfos[enterEdge].pseudoSrcId >= mesh->vertNum &&
+			while (splitInfos.get(enterEdge).pseudoSrcId < mesh->vertNum &&
+				opVert != splitInfos.get(enterEdge).pseudoSrcId ||
+				splitInfos.get(enterEdge).pseudoSrcId >= mesh->vertNum &&
 				mesh->edges[mesh->edges[gkp.id].twinEdge].faceId != sourcePointFace)
 			{
 				// trace back
@@ -444,11 +457,11 @@ __host__ __device__ void ICH::BuildGeodesicPathTo(unsigned vertId, unsigned &src
 				opVert = mesh->edges[mesh->edges[opVert].nextEdge].verts[1];
 			}
 
-			if (splitInfos[enterEdge].pseudoSrcId >= mesh->vertNum) {
-				curVert = splitInfos[enterEdge].pseudoSrcId;
+			if (splitInfos.get(enterEdge).pseudoSrcId >= mesh->vertNum) {
+				curVert = splitInfos.get(enterEdge).pseudoSrcId;
 				break;
 			}
-			if (vertInfos[opVert].dist != 0.0)
+			if (vertInfos.get(opVert).dist != 0.0)
 			{
 				gkp.isVertex = true;
 				gkp.id = opVert;
@@ -463,23 +476,31 @@ __host__ __device__ void ICH::BuildGeodesicPathTo(unsigned vertId, unsigned &src
 
 __host__ __device__ double ICH::GetDistanceTo(unsigned vertId)
 {
-	return vertInfos[vertId].dist;
+	return vertInfos.get(vertId).dist;
 }
 
 __host__ __device__ void ICH::Clear()
 {
 	winQ.clear(); pseudoSrcQ.clear();
-	for (int i = 0; i < mesh->edgeNum; ++i)
+
+	unsigned size = splitInfos.Size();
+	SplitItem *splitData = splitInfos.Data();
+	for (int i = 0; i < size+1; ++i)
 	{
-		splitInfos[i].dist = DBL_MAX;
-		splitInfos[i].x = DBL_MAX;
-		splitInfos[i].pseudoSrcId = -1;
+		splitData[i].item.dist = DBL_MAX;
+		splitData[i].item.x = DBL_MAX;
+		splitData[i].item.pseudoSrcId = -1;
+		splitData[i].index = -1;
 	}
-	for (int i = 0; i < mesh->vertNum; ++i)
+
+	size = vertInfos.Size();
+	VertItem *vertData = vertInfos.Data();
+	for (int i = 0; i < size+1; ++i)
 	{
-		vertInfos[i].birthTime = -1;
-		vertInfos[i].dist = DBL_MAX;
-		vertInfos[i].enterEdge = -1;
+		vertData[i].item.birthTime = -1;
+		vertData[i].item.dist = DBL_MAX;
+		vertData[i].item.enterEdge = -1;
+		vertData[i].index = -1;
 	}
 	sourceVert = -1;
 	sourcePointFace = -1;
@@ -529,7 +550,7 @@ __host__ __device__ void ICH::Initialize()
 			PseudoWindow pseudoWin;
 			pseudoWin.vertID = opVert; pseudoWin.dist = mesh->edges[curEdge].edgeLen;
 			pseudoWin.srcId = sourceVert; pseudoWin.pseudoSrcId = sourceVert;
-			pseudoWin.pseudoBirthTime = vertInfos[opVert].birthTime;
+			pseudoWin.pseudoBirthTime = vertInfos.get(opVert).birthTime;
 			pseudoWin.level = 0;
 			pseudoSrcQ.push(pseudoWin, pseudoWin.dist);
 
@@ -568,7 +589,7 @@ __host__ __device__ void ICH::Initialize()
 			pseudoWin.vertID = opVert;
 			pseudoWin.dist = (mesh->verts[opVert].pos - sourcePointPos).length();
 			pseudoWin.srcId = win.srcID; pseudoWin.pseudoSrcId = win.srcID;
-			pseudoWin.pseudoBirthTime = vertInfos[opVert].birthTime;
+			pseudoWin.pseudoBirthTime = vertInfos.get(opVert).birthTime;
 			pseudoWin.level = 0;
 			pseudoSrcQ.push(pseudoWin, pseudoWin.dist);
 		}
@@ -619,10 +640,10 @@ __host__ __device__ void ICH::PropagateWindow(const Window &win)
 	{
 		double directDist = (v2 - src2D).length();
 		// ONE ANGLE, ONE SPLIT
-		if (directDist + win.pseudoSrcDist > splitInfos[e0].dist &&
-			(directDist + win.pseudoSrcDist) / splitInfos[e0].dist - 1.0 > RELATIVE_ERROR)
+		if (directDist + win.pseudoSrcDist > splitInfos.get(e0).dist &&
+			(directDist + win.pseudoSrcDist) / splitInfos.get(e0).dist - 1.0 > RELATIVE_ERROR)
 		{
-			hasLeftChild = splitInfos[e0].x < interX;
+			hasLeftChild = splitInfos.get(e0).x < interX;
 			hasRightChild = !hasLeftChild;
 			/*cout << "Filter 1 works..." << endl;*/
 		}
@@ -632,9 +653,9 @@ __host__ __device__ void ICH::PropagateWindow(const Window &win)
 			splitInfos[e0].pseudoSrcId = win.pseudoSrcId;
 			splitInfos[e0].x = l0 - interX;
 
-			if (directDist + win.pseudoSrcDist < vertInfos[opVert].dist)
+			if (directDist + win.pseudoSrcDist < vertInfos.get(opVert).dist)
 			{
-				if (vertInfos[opVert].dist == DBL_MAX
+				if (vertInfos.get(opVert).dist == DBL_MAX
 					/*&& (win.pseudoSrcId == sourceVert || win.pseudoSrcId == mesh->vertNum)*/)
 					++totalCalcVertNum;
 
@@ -644,9 +665,9 @@ __host__ __device__ void ICH::PropagateWindow(const Window &win)
 				if (mesh->verts[opVert].angle > 2.0 * PI)
 				{
 					PseudoWindow pseudoWin;
-					pseudoWin.vertID = opVert; pseudoWin.dist = vertInfos[opVert].dist;
+					pseudoWin.vertID = opVert; pseudoWin.dist = vertInfos.get(opVert).dist;
 					pseudoWin.srcId = win.srcID; pseudoWin.pseudoSrcId = win.pseudoSrcId;
-					pseudoWin.pseudoBirthTime = vertInfos[opVert].birthTime;
+					pseudoWin.pseudoBirthTime = vertInfos.get(opVert).birthTime;
 					pseudoWin.level = win.level + 1;
 					pseudoSrcQ.push(pseudoWin, pseudoWin.dist);
 				}
@@ -684,14 +705,14 @@ __host__ __device__ void ICH::PropagateWindow(const Window &win)
 __host__ __device__ void ICH::GenSubWinsForPseudoSrc(const PseudoWindow &pseudoWin)
 {
 	unsigned startEdge, endEdge;
-	if (mesh->edges[vertInfos[pseudoWin.vertID].enterEdge].verts[0] == pseudoWin.vertID)
+	if (mesh->edges[vertInfos.get(pseudoWin.vertID).enterEdge].verts[0] == pseudoWin.vertID)
 		GenSubWinsForPseudoSrcFromPseudoSrc(pseudoWin, startEdge, endEdge);
-	else if (vertInfos[pseudoWin.vertID].enterEdge == -1 && vertInfos[pseudoWin.vertID].birthTime != -1)
+	else if (vertInfos.get(pseudoWin.vertID).enterEdge == -1 && vertInfos.get(pseudoWin.vertID).birthTime != -1)
 	{
 		startEdge = mesh->verts[pseudoWin.vertID].firstEdge;
 		endEdge = startEdge;
 	}
-	else if (mesh->edges[mesh->edges[vertInfos[pseudoWin.vertID].enterEdge].nextEdge].verts[1] == pseudoWin.vertID)
+	else if (mesh->edges[mesh->edges[vertInfos.get(pseudoWin.vertID).enterEdge].nextEdge].verts[1] == pseudoWin.vertID)
 		GenSubWinsForPseudoSrcFromWindow(pseudoWin, startEdge, endEdge);
 	else assert(false);
 
@@ -720,14 +741,14 @@ __host__ __device__ void ICH::GenSubWinsForPseudoSrc(const PseudoWindow &pseudoW
 	{
 		unsigned opVert = mesh->edges[curEdge].verts[1];
 		if (mesh->verts[opVert].angle < 2.0 * PI ||
-			vertInfos[opVert].dist < pseudoWin.dist + mesh->edges[curEdge].edgeLen)
+			vertInfos.get(opVert).dist < pseudoWin.dist + mesh->edges[curEdge].edgeLen)
 		{
 			curEdge = mesh->edges[curEdge].twinEdge;
 			if (curEdge != -1) curEdge = mesh->edges[curEdge].nextEdge;
 			continue;
 		}
 
-		if (vertInfos[opVert].dist == DBL_MAX
+		if (vertInfos.get(opVert).dist == DBL_MAX
 			/*&& (pseudoWin.pseudoSrcId == sourceVert || pseudoWin.pseudoSrcId == mesh->vertNum)*/)
 			++totalCalcVertNum;
 
@@ -736,9 +757,9 @@ __host__ __device__ void ICH::GenSubWinsForPseudoSrc(const PseudoWindow &pseudoW
 		vertInfos[opVert].enterEdge = mesh->edges[curEdge].twinEdge;
 
 		PseudoWindow childPseudoWin;
-		childPseudoWin.vertID = opVert; childPseudoWin.dist = vertInfos[opVert].dist;
+		childPseudoWin.vertID = opVert; childPseudoWin.dist = vertInfos.get(opVert).dist;
 		childPseudoWin.srcId = pseudoWin.srcId; childPseudoWin.pseudoSrcId = pseudoWin.vertID;
-		childPseudoWin.pseudoBirthTime = vertInfos[opVert].birthTime;
+		childPseudoWin.pseudoBirthTime = vertInfos.get(opVert).birthTime;
 		childPseudoWin.level = pseudoWin.level;
 		pseudoSrcQ.push(childPseudoWin, childPseudoWin.dist);
 
@@ -749,7 +770,7 @@ __host__ __device__ void ICH::GenSubWinsForPseudoSrc(const PseudoWindow &pseudoW
 
 __host__ __device__ void ICH::GenSubWinsForPseudoSrcFromWindow(const PseudoWindow &pseudoWin, unsigned &startEdge, unsigned &endEdge)
 {
-	unsigned e0 = vertInfos[pseudoWin.vertID].enterEdge;
+	unsigned e0 = vertInfos.get(pseudoWin.vertID).enterEdge;
 	unsigned e1 = mesh->edges[e0].nextEdge;
 	unsigned e2 = mesh->edges[e1].nextEdge;
 
@@ -759,7 +780,7 @@ __host__ __device__ void ICH::GenSubWinsForPseudoSrcFromWindow(const PseudoWindo
 
 	unsigned pseudoSrc = pseudoWin.vertID;
 	Vector2D enterPoint;
-	enterPoint.x = l0 - splitInfos[e0].x;
+	enterPoint.x = l0 - splitInfos.get(e0).x;
 	enterPoint.y = 0.0;
 
 	Vector2D v0(0.0, 0.0), v1(l0, 0.0), v2;
@@ -821,7 +842,7 @@ __host__ __device__ void ICH::GenSubWinsForPseudoSrcFromPseudoSrc(const PseudoWi
 
 	startEdge = -1, endEdge = -1;
 	// traverse from left
-	unsigned curEdge = vertInfos[pseudoWin.vertID].enterEdge;
+	unsigned curEdge = vertInfos.get(pseudoWin.vertID).enterEdge;
 	while (angle0 < PI || curEdge == -1)
 	{
 		unsigned opEdge = mesh->edges[curEdge].nextEdge;
@@ -838,7 +859,7 @@ __host__ __device__ void ICH::GenSubWinsForPseudoSrcFromPseudoSrc(const PseudoWi
 		startEdge = mesh->edges[mesh->edges[curEdge].twinEdge].nextEdge;
 
 	// traverse from right
-	curEdge = mesh->edges[vertInfos[pseudoWin.vertID].enterEdge].twinEdge;
+	curEdge = mesh->edges[vertInfos.get(pseudoWin.vertID).enterEdge].twinEdge;
 	while (angle1 < PI || curEdge == -1)
 	{
 		unsigned nextEdge = mesh->edges[curEdge].nextEdge;
@@ -875,22 +896,22 @@ __host__ __device__ bool ICH::IsValidWindow(const Window &win, bool isLeftChild)
 	Vector2D src2D = win.FlatenedSrc();
 
 
-	if (win.pseudoSrcDist + (src2D - B).length() > vertInfos[v1].dist + win.b1 &&
-		(win.pseudoSrcDist + (src2D - B).length()) / (vertInfos[v1].dist + win.b1) - 1.0 > 0.0)
+	if (win.pseudoSrcDist + (src2D - B).length() > vertInfos.get(v1).dist + win.b1 &&
+		(win.pseudoSrcDist + (src2D - B).length()) / (vertInfos.get(v1).dist + win.b1) - 1.0 > 0.0)
 	{
 		/*cout << "Filter 2 works..." << endl;*/
 		return false;
 	}
-	if (win.pseudoSrcDist + (src2D - A).length() > vertInfos[v2].dist + l0 - win.b0 &&
-		(win.pseudoSrcDist + (src2D - A).length()) / (vertInfos[v2].dist + l0 - win.b0) - 1.0 > 0.0)
+	if (win.pseudoSrcDist + (src2D - A).length() > vertInfos.get(v2).dist + l0 - win.b0 &&
+		(win.pseudoSrcDist + (src2D - A).length()) / (vertInfos.get(v2).dist + l0 - win.b0) - 1.0 > 0.0)
 	{
 		/*cout << "Filter 2 works..." << endl;*/
 		return false;
 	}
 	if (isLeftChild)
 	{
-		if (win.pseudoSrcDist + (src2D - A).length() > vertInfos[v3].dist + (p3 - A).length() &&
-			(win.pseudoSrcDist + (src2D - A).length()) / (vertInfos[v3].dist + (p3 - A).length()) - 1.0 > 0.0)
+		if (win.pseudoSrcDist + (src2D - A).length() > vertInfos.get(v3).dist + (p3 - A).length() &&
+			(win.pseudoSrcDist + (src2D - A).length()) / (vertInfos.get(v3).dist + (p3 - A).length()) - 1.0 > 0.0)
 		{
 			/*cout << "Filter 2 works..." << endl;*/
 			return false;
@@ -898,8 +919,8 @@ __host__ __device__ bool ICH::IsValidWindow(const Window &win, bool isLeftChild)
 	}
 	else
 	{
-		if (win.pseudoSrcDist + (src2D - B).length() > vertInfos[v3].dist + (p3 - B).length() &&
-			(win.pseudoSrcDist + (src2D - B).length()) / (vertInfos[v3].dist + (p3 - B).length()) - 1.0 > RELATIVE_ERROR)
+		if (win.pseudoSrcDist + (src2D - B).length() > vertInfos.get(v3).dist + (p3 - B).length() &&
+			(win.pseudoSrcDist + (src2D - B).length()) / (vertInfos.get(v3).dist + (p3 - B).length()) - 1.0 > RELATIVE_ERROR)
 		{
 			/*cout << "Filter 2 works..." << endl;*/
 			return false;

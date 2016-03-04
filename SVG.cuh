@@ -7,7 +7,7 @@
 #include "ICH.cuh"
 #include "InitialValueGeodesic.cuh"
 
-#define BLOCK_NUM 16
+#define BLOCK_NUM 64
 #define THREAD_NUM 128
 
 #define WINPQ_SIZE 1024
@@ -49,7 +49,10 @@ public:
 	__host__ __device__ ~SVG();
 
 	void AssignMesh(Mesh *mesh_, Mesh *d_mesh_);
-	void SetParameters(int K_);
+	// K represents the number of vertices in the geodesic-disk covered by each vertex
+	// splitInfoCoef represents the (average) valance of each vertex (6 for instance)
+	// vertInfoCoef has the same meaning as K (1 for instance)
+	void SetParameters(int K_, unsigned splitInfoCoef_, unsigned vertInfoCoef_);
 	bool Allocation();
 	void Free();
 	void FreeSVGStructure();
@@ -63,7 +66,8 @@ public:
 		GraphDistInfo * graphDistInfos, PriorityQueuesWithHandle<int> pq);
 
 	__host__ __device__ void SolveSSSD(int f0, Vector3D p0, int f1, Vector3D p1, Mesh mesh,
-		ICH::SplitInfo *d_splitInfos, ICH::VertInfo *d_vertInfos,
+		ICH::SplitItem *d_splitInfos, unsigned splitInfoSize, 
+		ICH::VertItem *d_vertInfos, unsigned vertInfoSize, 
 		PQWinItem *winPQBuf, PQPseudoWinItem *pseudoWinPQBuf,
 		ICH::Window *storedWindows, unsigned int *keptFaces,
 		GraphDistInfo * graphDistInfos, PriorityQueuesWithHandle<int> pq,
@@ -87,8 +91,8 @@ private:
 	PQPseudoWinItem *d_pseudoWinPQs;
 
 	// split info buffer for SplitInfo
-	ICH::SplitInfo *d_splitInfoBuf;
-	ICH::VertInfo *d_vertInfoBuf;
+	ICH::SplitItem *d_splitInfoBuf; unsigned splitInfoCoef;
+	ICH::VertItem *d_vertInfoBuf; unsigned vertInfoCoef;
 
 	// other buffers for ICH
 	ICH::Window *d_storedWindowsBuf;
@@ -105,7 +109,8 @@ private:
 
 __global__ void constructSVG(Mesh mesh, int K,
 	SVG::PQWinItem *d_winPQs, SVG::PQPseudoWinItem *d_pseudoWinPQs,
-	ICH::SplitInfo *d_splitInfoBuf, ICH::VertInfo *d_vertInfoBuf,
+	ICH::SplitItem *d_splitInfoBuf, unsigned splitInfoCoef, 
+	ICH::VertItem *d_vertInfoBuf, unsigned vertInfoCoef, 
 	ICH::Window *d_storedWindowsBuf, unsigned *d_keptFacesBuf,
 	SVG::SVGNode *d_svg, int *d_svg_tails);
 #endif

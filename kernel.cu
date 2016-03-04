@@ -1,14 +1,15 @@
 #include <iostream>
+#include <fstream>
 #include "SVG.cuh"
 #include "book.cuh"
 #include <ctime>
 
 using namespace std;
 
-#define TEST_SVG
+/*#define TEST_SVG*/
 /*#define TEST_ICHHOST*/
-/*#define TEST_SVG_SSSD2*/
-/*#define TEST_SVG_SSSD2_MULTIPLE_RUNNING*/
+#define TEST_SVG_SSSD2
+/*#define TEST_ICH*/
 
 #ifdef TEST_SVG
 int main(int argc, char **argv)
@@ -28,7 +29,7 @@ int main(int argc, char **argv)
 
 	SVG svg;
 	svg.AssignMesh(&mesh, &d_mesh);
-	svg.SetParameters(500);
+	svg.SetParameters(500, 10, 2);
 	svg.Allocation();
 
 	cout << "(Please check initial memory.)" << endl;
@@ -118,7 +119,7 @@ int main(int argc, char **argv)
 
 	SVG svg;
 	svg.AssignMesh(&mesh, &d_mesh);
-	svg.SetParameters(500);
+	svg.SetParameters(500, 10, 2);
 	svg.Allocation();
 
 	cout << "(Please check initial memory.)" << endl;
@@ -144,8 +145,8 @@ int main(int argc, char **argv)
 	PriorityQueuesWithHandle<int>::PQItem *pqBuf = new PriorityQueuesWithHandle<int>::PQItem[mesh.vertNum + 1];
 	pq.AssignMemory(pqBuf, mesh.vertNum);
 
-	ICH::SplitInfo *splitInfos = new ICH::SplitInfo[mesh.edgeNum];
-	ICH::VertInfo *vertInfos = new ICH::VertInfo[mesh.vertNum];
+	ICH::SplitItem *splitInfos = new ICH::SplitItem[500 * 10 + 1];
+	ICH::VertItem *vertInfos = new ICH::VertItem[500 * 2 + 1];
 	SVG::PQWinItem *winPQ = new SVG::PQWinItem[WINPQ_SIZE];
 	SVG::PQPseudoWinItem *pseudoWinPQs = new SVG::PQPseudoWinItem[PSEUDOWINPQ_SIZE];
 	ICH::Window *storedWindows = new ICH::Window[STORED_WIN_BUF_SIZE];
@@ -170,7 +171,10 @@ int main(int argc, char **argv)
 		SVG::SVGNode res;
 		int lastVert = -1;
 		clock_t start = clock();
-		svg.SolveSSSD(srcFace, srcPoint, dstFace, dstPoint, mesh, splitInfos, vertInfos, winPQ, pseudoWinPQs, storedWindows, keptFaces, graphDistInfos, pq, &res, &lastVert);
+		svg.SolveSSSD(srcFace, srcPoint, dstFace, dstPoint, mesh, 
+			splitInfos, 500 * 10, 
+			vertInfos, 500 * 2, 
+			winPQ, pseudoWinPQs, storedWindows, keptFaces, graphDistInfos, pq, &res, &lastVert);
 		clock_t end = clock();
 		cout << "Solved." << endl;
 		cout << "Time elapsed: " << (double)(end - start) / (double)CLOCKS_PER_SEC << endl;
@@ -212,7 +216,7 @@ int main(int argc, char **argv)
 }
 #endif
 
-#ifdef TEST_SVG_SSSD2_MULTIPLE_RUNNING
+#ifdef TEST_ICH
 int main(int argc, char **argv)
 {
 	if (argc < 2)
@@ -221,132 +225,58 @@ int main(int argc, char **argv)
 		return -1;
 	}
 	HANDLE_ERROR(cudaSetDevice(0));
-	Mesh mesh, d_mesh;
+	Mesh mesh;
 	mesh.LoadFromFile(argv[1]);
 	cout << "Mesh is loaded." << endl;
-	mesh.copyToGPU(&d_mesh);
 
-	cout << "Mesh is copied into GPU." << endl;
+	unsigned K = 5000;
+	unsigned splitInfoCoef = 10, vertInfoCoef = 2;
+	ICH::SplitItem *splitInfoBuf = new ICH::SplitItem[K * splitInfoCoef + 1];
+	ICH::VertItem *vertInfoBuf = new ICH::VertItem[K * vertInfoCoef + 1];
 
-	SVG svg;
-	svg.AssignMesh(&mesh, &d_mesh);
-	svg.SetParameters(500);
-	svg.Allocation();
+	PriorityQueues<ICH::Window>::PQItem *winPQs = new PriorityQueues<ICH::Window>::PQItem[WINPQ_SIZE];
+	PriorityQueues<ICH::PseudoWindow>::PQItem *pseudoWinPQs = new PriorityQueues<ICH::PseudoWindow>::PQItem[PSEUDOWINPQ_SIZE];
 
-	cout << "(Please check initial memory.)" << endl;
-	system("pause");
+	PriorityQueues<ICH::Window> winPQ(WINPQ_SIZE - 1);
+	PriorityQueues<ICH::PseudoWindow> pseudoWinPQ(PSEUDOWINPQ_SIZE - 1);
+	winPQ.AssignMemory(winPQs, WINPQ_SIZE - 1);
+	pseudoWinPQ.AssignMemory(pseudoWinPQs, PSEUDOWINPQ_SIZE - 1);
 
-	svg.ConstructSVG();
+	ICH::Window *storedWindowsBuf = new ICH::Window[STORED_WIN_BUF_SIZE];
+	unsigned *keptFacesBuf = new unsigned[KEPT_FACE_SIZE];
+	
+	ICH ich;
+	ich.AssignMesh(&mesh);
+	ich.AssignBuffers(splitInfoBuf, K * splitInfoCoef, 
+		vertInfoBuf, K * vertInfoCoef,
+		winPQ, pseudoWinPQ,
+		storedWindowsBuf, keptFacesBuf);
 
-	cout << "SVG is built." << endl;
-	cout << "(Please check final memory.)" << endl;
-	system("pause");
+	ich.Clear();
+	ich.AddSource(100);
 
-	svg.Free();
+	clock_t start = clock();
+	ich.Execute(K);
+	clock_t end = clock();
+	cout << "Time: " << static_cast<double>(end - start) / static_cast<double>(CLOCKS_PER_SEC) << endl;
 
-	cout << "(Please check SVG-structure + Mesh memory.)" << endl;
-	system("pause");
-
-	svg.CopySVGToHost();
-	cout << "SVG-structure is copied to host." << endl;
-	system("pause");
-
-	SVG::GraphDistInfo *graphDistInfos = new SVG::GraphDistInfo[mesh.vertNum];
-	PriorityQueuesWithHandle<int> pq(mesh.vertNum);
-	PriorityQueuesWithHandle<int>::PQItem *pqBuf = new PriorityQueuesWithHandle<int>::PQItem[mesh.vertNum + 1];
-	pq.AssignMemory(pqBuf, mesh.vertNum);
-
-	ICH::SplitInfo *splitInfos = new ICH::SplitInfo[mesh.edgeNum];
-	ICH::VertInfo *vertInfos = new ICH::VertInfo[mesh.vertNum];
-	SVG::PQWinItem *winPQ = new SVG::PQWinItem[WINPQ_SIZE];
-	SVG::PQPseudoWinItem *pseudoWinPQs = new SVG::PQPseudoWinItem[PSEUDOWINPQ_SIZE];
-	ICH::Window *storedWindows = new ICH::Window[STORED_WIN_BUF_SIZE];
-	unsigned int *keptFaces = new unsigned int[KEPT_FACE_SIZE];
-
-	ifstream input("r0r1r2.txt");
-	string curLine;
-	int r[3] = { -1, -1, -1 };
-	int srcFace = -1, dstFace = -1;
-	Vector3D srcPoint, dstPoint;
-	while (getline(input, curLine))
+	ofstream output("result.obj");
+	output << "mtllib texture.mtl" << endl;
+	for (int i = 0; i < mesh.vertNum; ++i)
+		output << "v " << mesh.verts[i].pos << endl;
+	double maxDist = 0.0;
+	for (int i = 0; i < mesh.vertNum; ++i)
+		if (ich.GetDistanceTo(i) != DBL_MAX) maxDist = max(maxDist, ich.GetDistanceTo(i));
+	for (int i = 0; i < mesh.vertNum; ++i)
 	{
-		stringstream sin;
-		sin << curLine;
-		if (r[0] == -1) {
-			sin >> r[0]; continue;
-		}
-		else if (r[1] == -1) {
-			sin >> r[1]; continue;
-		}
-		else sin >> r[2];
-		cout << "Geodesic difference between " << r[0] << " and " << r[1] << " ..." << endl;
-		ifstream inputIndividual0(("individual_" + to_string(r[0])));
-		ifstream inputIndividual1(("individual_" + to_string(r[1])));
-
-		string curLine1, curLine2;
-		while (getline(inputIndividual0, curLine1))
-		{
-			getline(inputIndividual1, curLine2);
-			sin.clear();
-			sin << curLine1; sin >> srcFace >> srcPoint.x >> srcPoint.y >> srcPoint.z;
-			sin.clear();
-			sin << curLine2; sin >> dstFace >> dstPoint.x >> dstPoint.y >> dstPoint.z;
-
-			cout << "Solving (" << srcFace << " " << srcPoint << ") and (" << dstFace << " " << dstPoint << ") ... " << endl;
-			SVG::SVGNode res;
-			int lastVert = -1;
-			clock_t start = clock();
-			svg.SolveSSSD(srcFace, srcPoint, dstFace, dstPoint, mesh, splitInfos, vertInfos, winPQ, pseudoWinPQs, storedWindows, keptFaces, graphDistInfos, pq, &res, &lastVert);
-			clock_t end = clock();
-			cout << "Solved." << endl;
-			cout << "Time elapsed: " << (double)(end - start) / (double)CLOCKS_PER_SEC << endl;
-			cout << "Distance: " << res.geodDist << endl;
-			cout << "Next to src edge: " << res.nextToSrcEdge << endl;
-			cout << "Next to src pos: " << res.nextToSrcX << endl;
-			cout << "Next to dst edge: " << res.nextToDstEdge << endl;
-			cout << "Next to dst pos: " << res.nextToDstX << endl;
-
-			cout << "Passed vertices: ";
-			while (lastVert != -1)
-			{
-				cout << lastVert << " ";
-				lastVert = graphDistInfos[lastVert].pathParentIndex;
-			}
-			cout << endl;
-
-			// clear
-			for (int i = 0; i < mesh.edgeNum; ++i)
-			{
-				splitInfos[i].dist = DBL_MAX;
-				splitInfos[i].pseudoSrcId = -1;
-				splitInfos[i].x = DBL_MAX;
-			}
-			for (int i = 0; i < mesh.vertNum; ++i)
-			{
-				vertInfos[i].birthTime = -1;
-				vertInfos[i].dist = DBL_MAX;
-				vertInfos[i].enterEdge = -1;
-			}
-			for (int i = 0; i < mesh.vertNum; ++i)
-			{
-				graphDistInfos[i].dist = DBL_MAX;
-				graphDistInfos[i].indexInPQ = -1;
-				graphDistInfos[i].pathParentIndex = -1;
-			}
-			pq.clear();
-			/*system("pause");*/
-		}
-		r[0] = r[1] = r[2] = -1;
+		double dist = ich.GetDistanceTo(i);
+		if (dist == DBL_MAX) dist = 0.0;
+		output << "vt " << dist / maxDist << " " << dist / maxDist << endl;
 	}
-
-	delete[] graphDistInfos;
-	delete[] pqBuf;
-
-	svg.FreeSVGStructure();
-	mesh.clear();
-	d_mesh.clearGPU();
-
-	HANDLE_ERROR(cudaDeviceReset());
+	for (int i = 0; i < mesh.faceNum; ++i)
+		output << "f" << " " << mesh.faces[i].verts[0] + 1 << "/" << mesh.faces[i].verts[0] + 1
+		<< " " << mesh.faces[i].verts[1] + 1 << "/" << mesh.faces[i].verts[1] + 1
+		<< " " << mesh.faces[i].verts[2] + 1 << "/" << mesh.faces[i].verts[2] + 1 << endl;
 	return 0;
 }
 #endif

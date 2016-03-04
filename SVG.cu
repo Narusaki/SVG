@@ -8,7 +8,8 @@ using namespace std;
 
 __global__ void constructSVG(Mesh mesh, int K,
 	SVG::PQWinItem *d_winPQs, SVG::PQPseudoWinItem *d_pseudoWinPQs,
-	ICH::SplitInfo *d_splitInfoBuf, ICH::VertInfo *d_vertInfoBuf,
+	ICH::SplitItem *d_splitInfoBuf, unsigned splitInfoCoef, 
+	ICH::VertItem *d_vertInfoBuf, unsigned vertInfoCoef, 
 	ICH::Window *d_storedWindowsBuf, unsigned *d_keptFacesBuf,
 	SVG::SVGNode *d_svg, int *d_svg_tails)
 {
@@ -22,8 +23,8 @@ __global__ void constructSVG(Mesh mesh, int K,
 
 	ICH ich;
 	ich.AssignMesh(&mesh);
-	ich.AssignBuffers(d_splitInfoBuf + idx * mesh.edgeNum,
-		d_vertInfoBuf + idx * mesh.vertNum,
+	ich.AssignBuffers(d_splitInfoBuf + idx * (K * splitInfoCoef + 1), K * splitInfoCoef,
+		d_vertInfoBuf + idx * (K * vertInfoCoef + 1), K * vertInfoCoef,
 		winPQ, pseudoWinPQ,
 		d_storedWindowsBuf + idx * STORED_WIN_BUF_SIZE, d_keptFacesBuf + idx * KEPT_FACE_SIZE);
 
@@ -110,9 +111,9 @@ void SVG::AssignMesh(Mesh *mesh_, Mesh *d_mesh_)
 	mesh = mesh_; d_mesh = d_mesh_;
 }
 
-void SVG::SetParameters(int K_)
+void SVG::SetParameters(int K_, unsigned splitInfoCoef_, unsigned vertInfoCoef_)
 {
-	K = K_;
+	K = K_; splitInfoCoef = splitInfoCoef_; vertInfoCoef = vertInfoCoef_;
 }
 
 bool SVG::Allocation()
@@ -125,8 +126,9 @@ bool SVG::Allocation()
 	HANDLE_ERROR(cudaMalloc((void**)&d_pseudoWinPQs, totalThreadNum * PSEUDOWINPQ_SIZE * sizeof(PQPseudoWinItem)));
 
 	// allocation info buffers for ICH
-	HANDLE_ERROR(cudaMalloc((void**)&d_splitInfoBuf, totalThreadNum * mesh->edgeNum * sizeof(ICH::SplitInfo)));
-	HANDLE_ERROR(cudaMalloc((void**)&d_vertInfoBuf, totalThreadNum * mesh->vertNum * sizeof(ICH::VertInfo)));
+	// for splitInfo and vertInfo, allocate one more buffer for each thread in the case of hash-table getting full
+	HANDLE_ERROR(cudaMalloc((void**)&d_splitInfoBuf, totalThreadNum * (splitInfoCoef * K + 1) * sizeof(ICH::SplitItem)));
+	HANDLE_ERROR(cudaMalloc((void**)&d_vertInfoBuf, totalThreadNum * (vertInfoCoef * K + 1) * sizeof(ICH::VertItem)));
 	HANDLE_ERROR(cudaMalloc((void**)&d_storedWindowsBuf, totalThreadNum * STORED_WIN_BUF_SIZE * sizeof(ICH::Window)));
 	HANDLE_ERROR(cudaMalloc((void**)&d_keptFacesBuf, totalThreadNum * KEPT_FACE_SIZE * sizeof(unsigned)));
 
@@ -158,8 +160,10 @@ void SVG::FreeSVGStructure()
 void SVG::ConstructSVG()
 {
 	clock_t start = clock();
-	constructSVG << <BLOCK_NUM, THREAD_NUM >> >(*d_mesh, K,
-		d_winPQs, d_pseudoWinPQs, d_splitInfoBuf, d_vertInfoBuf,
+	constructSVG <<<BLOCK_NUM, THREAD_NUM >>>(*d_mesh, K,
+		d_winPQs, d_pseudoWinPQs, 
+		d_splitInfoBuf, splitInfoCoef, 
+		d_vertInfoBuf, vertInfoCoef, 
 		d_storedWindowsBuf, d_keptFacesBuf,
 		d_svg, d_svg_tails);
 	// TODO: organize the constructed SVG
@@ -211,7 +215,8 @@ __host__ __device__ void SVG::SolveSSSD(int s, int t, Mesh mesh, GraphDistInfo *
 }
 
 __host__ __device__ void SVG::SolveSSSD(int f0, Vector3D p0, int f1, Vector3D p1, Mesh mesh,
-	ICH::SplitInfo *d_splitInfos, ICH::VertInfo *d_vertInfos,
+	ICH::SplitItem *d_splitInfos, unsigned splitInfoSize, 
+	ICH::VertItem *d_vertInfos, unsigned vertInfoSize, 
 	PQWinItem *winPQBuf, PQPseudoWinItem *pseudoWinPQBuf,
 	ICH::Window *storedWindows, unsigned int *keptFaces,
 	GraphDistInfo * graphDistInfos, PriorityQueuesWithHandle<int> pq,
@@ -227,7 +232,9 @@ __host__ __device__ void SVG::SolveSSSD(int f0, Vector3D p0, int f1, Vector3D p1
 	local_pseudoWinPQ.AssignMemory(pseudoWinPQBuf, PSEUDOWINPQ_SIZE - 1);
 
 	ich.AssignMesh(&mesh);
-	ich.AssignBuffers(d_splitInfos, d_vertInfos, local_winPQ, local_pseudoWinPQ, storedWindows, keptFaces);
+	ich.AssignBuffers(d_splitInfos, splitInfoSize, 
+		d_vertInfos, vertInfoSize, 
+		local_winPQ, local_pseudoWinPQ, storedWindows, keptFaces);
 
 	ich.Clear();
 	ich.AddSource(f0, p0);
@@ -238,12 +245,13 @@ __host__ __device__ void SVG::SolveSSSD(int f0, Vector3D p0, int f1, Vector3D p1
 	ich.BuildGeodesicPathTo(f1, p1, srcId, res->nextToSrcEdge, res->nextToSrcX, res->nextToDstEdge, res->nextToDstX);
 	if (res->nextToSrcEdge != -1) return;
 
-	for (int i = 0; i < mesh.vertNum; ++i)
+	for (int i = 0; i < vertInfoSize; ++i)
 	{
-		if (d_vertInfos[i].dist == DBL_MAX) continue;
-		graphDistInfos[i].dist = d_vertInfos[i].dist;
-		graphDistInfos[i].pathParentIndex = -1;
-		pq.push(i, &graphDistInfos[i].indexInPQ, d_vertInfos[i].dist);
+		unsigned idx = d_vertInfos[i].index;
+		if (d_vertInfos[i].item.dist == DBL_MAX) continue;
+		graphDistInfos[idx].dist = d_vertInfos[i].item.dist;
+		graphDistInfos[idx].pathParentIndex = -1;
+		pq.push(idx, &graphDistInfos[idx].indexInPQ, d_vertInfos[i].item.dist);
 	}
 	Astar(&mesh, -1, graphDistInfos, pq);
 	// TODO: how to virtually link the dst-surface-point into the SVG?
@@ -254,12 +262,13 @@ __host__ __device__ void SVG::SolveSSSD(int f0, Vector3D p0, int f1, Vector3D p1
 	// find the minimal dist and corresponding last-passed vertex
 	double minDist = DBL_MAX;
 	unsigned int lastVertId = -1;
-	for (int i = 0; i < mesh.vertNum; ++i)
+	for (int i = 0; i < vertInfoSize; ++i)
 	{
-		if (d_vertInfos[i].dist == DBL_MAX) continue;
-		if (graphDistInfos[i].dist + d_vertInfos[i].dist >= minDist) continue;
-		minDist = graphDistInfos[i].dist + d_vertInfos[i].dist;
-		lastVertId = i;
+		unsigned idx = d_vertInfos[i].index;
+		if (d_vertInfos[i].item.dist == DBL_MAX) continue;
+		if (graphDistInfos[idx].dist + d_vertInfos[i].item.dist >= minDist) continue;
+		minDist = graphDistInfos[idx].dist + d_vertInfos[i].item.dist;
+		lastVertId = idx;
 	}
 	res->geodDist = minDist;
 	*saddleVertNearDst = lastVertId;
@@ -289,7 +298,7 @@ __host__ __device__ void SVG::SolveSSSD(int f0, Vector3D p0, int f1, Vector3D p1
 	ich.Execute(K);
 
 	// this IF seems to be not necessary ...
-	if (d_vertInfos[lastVertId].dist != DBL_MAX)
+	if (d_vertInfos[ich.vertInfos.getKey(lastVertId)].item.dist != DBL_MAX)
 	{
 		ich.BuildGeodesicPathTo(lastVertId, srcId, nextToSrcEdge, nextToSrcX, res->nextToDstEdge, res->nextToDstX);
 		if (nextToSrcEdge == -1)
