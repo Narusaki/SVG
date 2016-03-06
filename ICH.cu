@@ -881,6 +881,7 @@ __host__ __device__ void ICH::GenSubWinsForPseudoSrcFromPseudoSrc(const PseudoWi
 
 __host__ __device__ bool ICH::IsValidWindow(const Window &win, bool isLeftChild)
 {
+	if (win.b1 <= win.b0) return false;
 	// apply ICH's filter
 	unsigned v1 = mesh->edges[win.edgeID].verts[0];
 	unsigned v2 = mesh->edges[win.edgeID].verts[1];
