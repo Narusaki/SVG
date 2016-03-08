@@ -243,7 +243,7 @@ __host__ __device__ void SVG::SolveSSSD(int f0, Vector3D p0, int f1, Vector3D p1
 	ich.Execute(K);
 
 	unsigned int srcId;
-	ich.BuildGeodesicPathTo(f1, p1, srcId, res->nextToSrcEdge, res->nextToSrcX, res->nextToDstEdge, res->nextToDstX);
+	res->geodDist = ich.BuildGeodesicPathTo(f1, p1, srcId, res->nextToSrcEdge, res->nextToSrcX, res->nextToDstEdge, res->nextToDstX);
 	if (res->nextToSrcEdge != -1) return;
 
 	for (int i = 0; i < vertInfoSize; ++i)

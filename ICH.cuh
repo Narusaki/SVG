@@ -106,7 +106,7 @@ public:
 	__host__ __device__ void OutputStatisticInfo();
 	__host__ __device__ void BuildGeodesicPathTo(unsigned vertId, unsigned &srcId,
 		unsigned &nextToSrcEdge, double &nextToSrcX, unsigned &nextToDstEdge, double &nextToDstX);
-	__host__ __device__ void BuildGeodesicPathTo(unsigned faceId, Vector3D pos, unsigned &srcId,
+	__host__ __device__ double BuildGeodesicPathTo(unsigned faceId, Vector3D pos, unsigned &srcId,
 		unsigned &nextToSrcEdge, double &nextToSrcX, unsigned &nextToDstEdge, double &nextToDstX);
 	__host__ __device__ double GetDistanceTo(unsigned vertId);
 	__host__ __device__ void Clear();

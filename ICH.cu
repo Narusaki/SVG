@@ -140,7 +140,7 @@ __host__ __device__ void ICH::OutputStatisticInfo()
 	*/
 }
 
-__host__ __device__ void ICH::BuildGeodesicPathTo(unsigned faceId, Vector3D pos, unsigned &srcId,
+__host__ __device__ double ICH::BuildGeodesicPathTo(unsigned faceId, Vector3D pos, unsigned &srcId,
 	unsigned &nextToSrcEdge, double &nextToSrcX, unsigned &nextToDstEdge, double &nextToDstX)
 {
 	pathPassVert = false;
@@ -230,7 +230,9 @@ __host__ __device__ void ICH::BuildGeodesicPathTo(unsigned faceId, Vector3D pos,
 		}
 	}
 
-	if (minDist == DBL_MAX) return;
+	if (minDist == DBL_MAX) {
+		return minDist;
+	}
 
 	if (!throughAWindow)
 	{
@@ -326,6 +328,8 @@ __host__ __device__ void ICH::BuildGeodesicPathTo(unsigned faceId, Vector3D pos,
 		}
 		srcId = minWin.srcID;
 	}
+
+	return minDist;
 }
 
 __host__ __device__ void ICH::BuildGeodesicPathTo(unsigned vertId, unsigned &srcId,
