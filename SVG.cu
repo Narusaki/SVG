@@ -8,8 +8,8 @@ using namespace std;
 
 __global__ void constructSVG(Mesh mesh, int K,
 	SVG::PQWinItem *d_winPQs, SVG::PQPseudoWinItem *d_pseudoWinPQs,
-	ICH::SplitItem *d_splitInfoBuf, unsigned splitInfoCoef, 
-	ICH::VertItem *d_vertInfoBuf, unsigned vertInfoCoef, 
+	ICH::SplitItem *d_splitInfoBuf, unsigned splitInfoCoef,
+	ICH::VertItem *d_vertInfoBuf, unsigned vertInfoCoef,
 	ICH::Window *d_storedWindowsBuf, unsigned *d_keptFacesBuf,
 	SVG::SVGNode *d_svg, int *d_svg_tails)
 {
@@ -120,7 +120,7 @@ bool SVG::Allocation()
 {
 	// allocation memories for PriorityQueues
 
-	int totalThreadNum = THREAD_NUM * BLOCK_NUM;
+	int totalThreadNum = SVG_THREAD_NUM * SVG_BLOCK_NUM;
 
 	HANDLE_ERROR(cudaMalloc((void**)&d_winPQs, totalThreadNum * WINPQ_SIZE * sizeof(PQWinItem)));
 	HANDLE_ERROR(cudaMalloc((void**)&d_pseudoWinPQs, totalThreadNum * PSEUDOWINPQ_SIZE * sizeof(PQPseudoWinItem)));
@@ -160,10 +160,10 @@ void SVG::FreeSVGStructure()
 void SVG::ConstructSVG()
 {
 	clock_t start = clock();
-	constructSVG <<<BLOCK_NUM, THREAD_NUM >>>(*d_mesh, K,
-		d_winPQs, d_pseudoWinPQs, 
-		d_splitInfoBuf, splitInfoCoef, 
-		d_vertInfoBuf, vertInfoCoef, 
+	constructSVG << <SVG_BLOCK_NUM, SVG_THREAD_NUM >> >(*d_mesh, K,
+		d_winPQs, d_pseudoWinPQs,
+		d_splitInfoBuf, splitInfoCoef,
+		d_vertInfoBuf, vertInfoCoef,
 		d_storedWindowsBuf, d_keptFacesBuf,
 		d_svg, d_svg_tails);
 	// TODO: organize the constructed SVG
@@ -210,13 +210,14 @@ __host__ __device__ void SVG::SolveSSSD(int s, int t, Mesh mesh, GraphDistInfo *
 	searchType = ASTAR;
 	graphDistInfos[s].dist = 0.0;
 	graphDistInfos[s].pathParentIndex = -1;
+	graphDistInfos[s].srcId = s;
 	pq.push(s, &graphDistInfos[s].indexInPQ, 0.0 + (mesh.verts[s].pos - mesh.verts[t].pos).length());
 	Astar(&mesh, t, graphDistInfos, pq);
 }
 
 __host__ __device__ void SVG::SolveSSSD(int f0, Vector3D p0, int f1, Vector3D p1, Mesh mesh,
-	ICH::SplitItem *d_splitInfos, unsigned splitInfoSize, 
-	ICH::VertItem *d_vertInfos, unsigned vertInfoSize, 
+	ICH::SplitItem *d_splitInfos, unsigned splitInfoSize,
+	ICH::VertItem *d_vertInfos, unsigned vertInfoSize,
 	PQWinItem *winPQBuf, PQPseudoWinItem *pseudoWinPQBuf,
 	ICH::Window *storedWindows, unsigned int *keptFaces,
 	GraphDistInfo * graphDistInfos, PriorityQueuesWithHandle<int> pq,
@@ -232,8 +233,8 @@ __host__ __device__ void SVG::SolveSSSD(int f0, Vector3D p0, int f1, Vector3D p1
 	local_pseudoWinPQ.AssignMemory(pseudoWinPQBuf, PSEUDOWINPQ_SIZE - 1);
 
 	ich.AssignMesh(&mesh);
-	ich.AssignBuffers(d_splitInfos, splitInfoSize, 
-		d_vertInfos, vertInfoSize, 
+	ich.AssignBuffers(d_splitInfos, splitInfoSize,
+		d_vertInfos, vertInfoSize,
 		local_winPQ, local_pseudoWinPQ, storedWindows, keptFaces);
 
 	ich.Clear();
@@ -251,6 +252,7 @@ __host__ __device__ void SVG::SolveSSSD(int f0, Vector3D p0, int f1, Vector3D p1
 		if (d_vertInfos[i].item.dist == DBL_MAX) continue;
 		graphDistInfos[idx].dist = d_vertInfos[i].item.dist;
 		graphDistInfos[idx].pathParentIndex = -1;
+		graphDistInfos[idx].srcId = idx;
 		pq.push(idx, &graphDistInfos[idx].indexInPQ, d_vertInfos[i].item.dist);
 	}
 	Astar(&mesh, -1, graphDistInfos, pq);
@@ -323,6 +325,7 @@ __host__ __device__ void SVG::SolveMSAD(int *sources, double *sourceWeights, int
 	{
 		graphDistInfos[sources[i]].dist = sourceWeights[i];
 		graphDistInfos[sources[i]].pathParentIndex = -1;
+		graphDistInfos[sources[i]].srcId = sources[i];
 		pq.push(sources[i], &graphDistInfos[sources[i]].indexInPQ, sourceWeights[i]);
 	}
 	Astar(&mesh, -1, graphDistInfos, pq);
@@ -356,6 +359,7 @@ __host__ __device__ void SVG::Astar(Mesh *mesh, int t, GraphDistInfo * graphDist
 
 			graphDistInfos[adjNodeIndex].dist = newDist;
 			graphDistInfos[adjNodeIndex].pathParentIndex = curNodeIndex;
+			graphDistInfos[adjNodeIndex].srcId = graphDistInfos[curNodeIndex].srcId;
 
 			double priority = 0.0;
 			switch (searchType)

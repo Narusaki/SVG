@@ -13,7 +13,7 @@ __host__ __device__ ICH::ICH()
 {
 	sourceVert = -1; sourcePointFace = -1;
 
-	mesh = NULL; 
+	mesh = NULL;
 	storedWindows = NULL; keptFaces = NULL;
 	storedWindowsIdx = 0; keptFacesIdx = 0;
 
@@ -123,7 +123,7 @@ __host__ __device__ void ICH::Execute(int totalCalcVertNum_)
 	for (int i = 0; i < vertInfos.Size(); ++i)
 		if (vertData[i].index != -1) ++cnt;
 	cout << "Vertex info hash-table size: " << cnt << "/" << vertInfos.Size() << endl;
-	
+
 	auto splitData = splitInfos.Data();
 	cnt = 0;
 	for (int i = 0; i < splitInfos.Size(); ++i)
@@ -485,7 +485,7 @@ __host__ __device__ void ICH::Clear()
 
 	unsigned size = splitInfos.Size();
 	SplitItem *splitData = splitInfos.Data();
-	for (int i = 0; i < size+1; ++i)
+	for (int i = 0; i < size + 1; ++i)
 	{
 		splitData[i].item.dist = DBL_MAX;
 		splitData[i].item.x = DBL_MAX;
@@ -495,7 +495,7 @@ __host__ __device__ void ICH::Clear()
 
 	size = vertInfos.Size();
 	VertItem *vertData = vertInfos.Data();
-	for (int i = 0; i < size+1; ++i)
+	for (int i = 0; i < size + 1; ++i)
 	{
 		vertData[i].item.birthTime = -1;
 		vertData[i].item.dist = DBL_MAX;
@@ -705,13 +705,13 @@ __host__ __device__ void ICH::PropagateWindow(const Window &win)
 __host__ __device__ void ICH::GenSubWinsForPseudoSrc(const PseudoWindow &pseudoWin)
 {
 	unsigned startEdge, endEdge;
-	if (mesh->edges[vertInfos.get(pseudoWin.vertID).enterEdge].verts[0] == pseudoWin.vertID)
-		GenSubWinsForPseudoSrcFromPseudoSrc(pseudoWin, startEdge, endEdge);
-	else if (vertInfos.get(pseudoWin.vertID).enterEdge == -1 && vertInfos.get(pseudoWin.vertID).birthTime != -1)
+	if (vertInfos.get(pseudoWin.vertID).enterEdge == -1 && vertInfos.get(pseudoWin.vertID).birthTime != -1)
 	{
 		startEdge = mesh->verts[pseudoWin.vertID].firstEdge;
 		endEdge = startEdge;
 	}
+	else if (mesh->edges[vertInfos.get(pseudoWin.vertID).enterEdge].verts[0] == pseudoWin.vertID)
+		GenSubWinsForPseudoSrcFromPseudoSrc(pseudoWin, startEdge, endEdge);
 	else if (mesh->edges[mesh->edges[vertInfos.get(pseudoWin.vertID).enterEdge].nextEdge].verts[1] == pseudoWin.vertID)
 		GenSubWinsForPseudoSrcFromWindow(pseudoWin, startEdge, endEdge);
 	else assert(false);
@@ -797,7 +797,7 @@ __host__ __device__ void ICH::GenSubWinsForPseudoSrcFromWindow(const PseudoWindo
 	startEdge = -1, endEdge = -1;
 	// traverse from left
 	unsigned curEdge = mesh->edges[e1].twinEdge;
-	while (angle0 < PI || curEdge == -1)
+	while (angle0 < PI && curEdge != -1)
 	{
 		unsigned opEdge = mesh->edges[curEdge].nextEdge;
 		unsigned nextEdge = mesh->edges[opEdge].nextEdge;
@@ -814,7 +814,7 @@ __host__ __device__ void ICH::GenSubWinsForPseudoSrcFromWindow(const PseudoWindo
 
 	// traverse from right
 	curEdge = mesh->edges[e2].twinEdge;
-	while (angle1 < PI || curEdge == -1)
+	while (angle1 < PI && curEdge != -1)
 	{
 		unsigned nextEdge = mesh->edges[curEdge].nextEdge;
 		unsigned opEdge = mesh->edges[nextEdge].nextEdge;
@@ -843,7 +843,7 @@ __host__ __device__ void ICH::GenSubWinsForPseudoSrcFromPseudoSrc(const PseudoWi
 	startEdge = -1, endEdge = -1;
 	// traverse from left
 	unsigned curEdge = vertInfos.get(pseudoWin.vertID).enterEdge;
-	while (angle0 < PI || curEdge == -1)
+	while (angle0 < PI && curEdge != -1)
 	{
 		unsigned opEdge = mesh->edges[curEdge].nextEdge;
 		unsigned nextEdge = mesh->edges[opEdge].nextEdge;
@@ -860,7 +860,7 @@ __host__ __device__ void ICH::GenSubWinsForPseudoSrcFromPseudoSrc(const PseudoWi
 
 	// traverse from right
 	curEdge = mesh->edges[vertInfos.get(pseudoWin.vertID).enterEdge].twinEdge;
-	while (angle1 < PI || curEdge == -1)
+	while (angle1 < PI && curEdge != -1)
 	{
 		unsigned nextEdge = mesh->edges[curEdge].nextEdge;
 		unsigned opEdge = mesh->edges[nextEdge].nextEdge;

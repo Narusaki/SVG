@@ -7,8 +7,8 @@
 #include "ICH.cuh"
 #include "InitialValueGeodesic.cuh"
 
-#define BLOCK_NUM 64
-#define THREAD_NUM 128
+const int SVG_BLOCK_NUM = 64;
+const int SVG_THREAD_NUM = 128;
 
 #define WINPQ_SIZE 1024
 #define PSEUDOWINPQ_SIZE 1024
@@ -18,7 +18,7 @@
 class SVG
 {
 public:
-	struct SVGNode	// 28 bytes
+	struct SVGNode	// 36 bytes
 	{
 		int adjNode;
 		double geodDist;
@@ -30,9 +30,10 @@ public:
 	{
 		double dist;
 		int pathParentIndex;
+		int srcId;
 		int indexInPQ;
 
-		__host__ __device__ GraphDistInfo() { dist = DBL_MAX; pathParentIndex = -1; indexInPQ = -1; }
+		__host__ __device__ GraphDistInfo() { dist = DBL_MAX; pathParentIndex = -1; srcId = -1; indexInPQ = -1; }
 	};
 
 	enum SEARCHTYPE
@@ -66,8 +67,8 @@ public:
 		GraphDistInfo * graphDistInfos, PriorityQueuesWithHandle<int> pq);
 
 	__host__ __device__ void SolveSSSD(int f0, Vector3D p0, int f1, Vector3D p1, Mesh mesh,
-		ICH::SplitItem *d_splitInfos, unsigned splitInfoSize, 
-		ICH::VertItem *d_vertInfos, unsigned vertInfoSize, 
+		ICH::SplitItem *d_splitInfos, unsigned splitInfoSize,
+		ICH::VertItem *d_vertInfos, unsigned vertInfoSize,
 		PQWinItem *winPQBuf, PQPseudoWinItem *pseudoWinPQBuf,
 		ICH::Window *storedWindows, unsigned int *keptFaces,
 		GraphDistInfo * graphDistInfos, PriorityQueuesWithHandle<int> pq,
@@ -84,7 +85,7 @@ private:
 public:
 	Mesh *mesh, *d_mesh;
 
-private:
+public:
 	// priority queues for Windows
 	PQWinItem *d_winPQs;
 	// priority queues for Pseudo Windows
@@ -104,13 +105,14 @@ private:
 private:
 	SVGNode *d_svg, *svg;
 	int *d_svg_tails, *svg_tails;
+public:
 	int K;
 };
 
 __global__ void constructSVG(Mesh mesh, int K,
 	SVG::PQWinItem *d_winPQs, SVG::PQPseudoWinItem *d_pseudoWinPQs,
-	ICH::SplitItem *d_splitInfoBuf, unsigned splitInfoCoef, 
-	ICH::VertItem *d_vertInfoBuf, unsigned vertInfoCoef, 
+	ICH::SplitItem *d_splitInfoBuf, unsigned splitInfoCoef,
+	ICH::VertItem *d_vertInfoBuf, unsigned vertInfoCoef,
 	ICH::Window *d_storedWindowsBuf, unsigned *d_keptFacesBuf,
 	SVG::SVGNode *d_svg, int *d_svg_tails);
 #endif
