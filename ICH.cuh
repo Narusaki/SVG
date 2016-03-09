@@ -75,9 +75,10 @@ public:
 	{
 		char birthTime;
 		double dist;
+		bool isSource;
 		int enterEdge;
 
-		__host__ __device__ VertInfo() { birthTime = -1; dist = DBL_MAX; enterEdge = -1; }
+		__host__ __device__ VertInfo() { birthTime = -1; dist = DBL_MAX; isSource = false; enterEdge = -1; }
 	};
 
 	struct GeodesicKeyPoint

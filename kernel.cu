@@ -8,8 +8,9 @@ using namespace std;
 
 /*#define TEST_SVG*/
 /*#define TEST_ICHHOST*/
-#define TEST_SVG_SSSD2
+/*#define TEST_SVG_SSSD2*/
 /*#define TEST_ICH*/
+#define TEST_SVG_MSAD
 
 #ifdef TEST_SVG
 int main(int argc, char **argv)
@@ -157,6 +158,17 @@ int main(int argc, char **argv)
 
 	while (true)
 	{
+		// clear graphDistInfos
+		for (int i = 0; i < mesh.vertNum; ++i)
+		{
+			graphDistInfos[i].dist = DBL_MAX;
+			graphDistInfos[i].indexInPQ = -1;
+			graphDistInfos[i].srcId = -1;
+			graphDistInfos[i].pathParentIndex = -1;
+		}
+		// clear pq
+		pq.clear();
+
 		cout << "Input srcFace & dstFace (input -1 -1 to exit): ";
 		cin >> srcFace >> dstFace;
 		if (srcFace == -1 && dstFace == -1) break;
@@ -191,16 +203,6 @@ int main(int argc, char **argv)
 			lastVert = graphDistInfos[lastVert].pathParentIndex;
 		}
 		cout << endl;
-
-		// clear graphDistInfos
-		for (int i = 0; i < mesh.vertNum; ++i)
-		{
-			graphDistInfos[i].dist = DBL_MAX;
-			graphDistInfos[i].indexInPQ = -1;
-			graphDistInfos[i].pathParentIndex = -1;
-		}
-		// clear pq
-		pq.clear();
 	}
 
 
@@ -277,6 +279,122 @@ int main(int argc, char **argv)
 		output << "f" << " " << mesh.faces[i].verts[0] + 1 << "/" << mesh.faces[i].verts[0] + 1
 		<< " " << mesh.faces[i].verts[1] + 1 << "/" << mesh.faces[i].verts[1] + 1
 		<< " " << mesh.faces[i].verts[2] + 1 << "/" << mesh.faces[i].verts[2] + 1 << endl;
+	return 0;
+}
+#endif
+
+#ifdef TEST_SVG_MSAD
+int main(int argc, char **argv)
+{
+	if (argc < 2)
+	{
+		cout << "[.exe] [in.obj]" << endl;
+		return -1;
+	}
+	HANDLE_ERROR(cudaSetDevice(0));
+	Mesh mesh, d_mesh;
+	mesh.LoadFromFile(argv[1]);
+	cout << "Mesh is loaded." << endl;
+	mesh.copyToGPU(&d_mesh);
+
+	cout << "Mesh is copied into GPU." << endl;
+
+	SVG svg;
+	svg.AssignMesh(&mesh, &d_mesh);
+	svg.SetParameters(500, 10, 2);
+	svg.Allocation();
+
+	cout << "(Please check initial memory.)" << endl;
+	system("pause");
+
+	svg.ConstructSVG();
+
+	cout << "SVG is built." << endl;
+	cout << "(Please check final memory.)" << endl;
+	system("pause");
+
+	svg.Free();
+
+	cout << "(Please check SVG-structure + Mesh memory.)" << endl;
+	system("pause");
+
+	svg.CopySVGToHost();
+	cout << "SVG-structure is copied to host." << endl;
+	system("pause");
+
+	SVG::GraphDistInfo *graphDistInfos = new SVG::GraphDistInfo[mesh.vertNum];
+	PriorityQueuesWithHandle<int> pq(mesh.vertNum);
+	PriorityQueuesWithHandle<int>::PQItem *pqBuf = new PriorityQueuesWithHandle<int>::PQItem[mesh.vertNum + 1];
+	pq.AssignMemory(pqBuf, mesh.vertNum);
+
+	int srcFace = -1, dstFace = -1;
+	Vector3D srcPoint, dstPoint;
+	int sources[3]; double sourceWeights[3];
+
+	while (true)
+	{
+		// clear graphDistInfos
+		for (int i = 0; i < mesh.vertNum; ++i)
+		{
+			graphDistInfos[i].dist = DBL_MAX;
+			graphDistInfos[i].indexInPQ = -1;
+			graphDistInfos[i].srcId = -1;
+			graphDistInfos[i].pathParentIndex = -1;
+		}
+		// clear pq
+		pq.clear();
+
+		cout << "Input srcFace & dstFace (input -1 -1 to exit): ";
+		cin >> srcFace >> dstFace;
+		if (srcFace == -1 && dstFace == -1) break;
+		cout << "Input srcPoint: ";
+		cin >> srcPoint.x >> srcPoint.y >> srcPoint.z;
+		cout << "Input dstPoint: ";
+		cin >> dstPoint.x >> dstPoint.y >> dstPoint.z;
+		cout << "Solving ... " << endl;
+
+		for (int j = 0; j < 3; ++j)
+		{
+			sources[j] = mesh.faces[srcFace].verts[j];
+			sourceWeights[j] = (srcPoint - mesh.verts[sources[j]].pos).length();
+		}
+
+		svg.SolveMSAD(sources, sourceWeights, 3, mesh, graphDistInfos, pq);
+
+		double dist = DBL_MAX;
+		unsigned vert0 = -1, vert1 = -1;
+		if (srcFace == dstFace)
+		{
+			dist = (srcPoint - dstPoint).length();
+		}
+		else
+		{
+			for (int k = 0; k < 3; ++k)
+			{
+				int curDstVert = mesh.faces[dstFace].verts[k];
+				double curDist = graphDistInfos[curDstVert].dist + (mesh.verts[curDstVert].pos - dstPoint).length();
+				if (curDist < dist)
+				{
+					dist = curDist;
+					vert1 = curDstVert;
+					vert0 = graphDistInfos[curDstVert].srcId;
+				}
+			}
+		}
+
+		cout << "Distance: " << dist << endl;
+		cout << "SrcVert: " << vert0 << ", DstVert: " << vert1 << endl;
+	}
+
+
+	delete[] graphDistInfos;
+	delete[] pqBuf;
+
+	svg.FreeSVGStructure();
+	mesh.clear();
+	d_mesh.clearGPU();
+
+	HANDLE_ERROR(cudaDeviceReset());
 	return 0;
 }
 #endif

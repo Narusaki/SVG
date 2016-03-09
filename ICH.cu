@@ -365,7 +365,7 @@ __host__ __device__ void ICH::BuildGeodesicPathTo(unsigned vertId, unsigned &src
 		{
 			// next key point is still a vertex
 			unsigned nextVert = mesh->edges[enterEdge].verts[1];
-			if (vertInfos.get(nextVert).dist != 0.0)
+			if (!vertInfos.get(nextVert).isSource)
 			{
 				gkp.isVertex = true;
 				gkp.id = nextVert;
@@ -380,8 +380,8 @@ __host__ __device__ void ICH::BuildGeodesicPathTo(unsigned vertId, unsigned &src
 					nextToSrcEdge = mesh->edges[enterEdge].nextEdge;
 					nextToSrcX = 0.0;
 				}
+				pathPassVert = true;
 			}
-			pathPassVert = true;
 			curVert = nextVert;
 		}
 		else
@@ -504,6 +504,7 @@ __host__ __device__ void ICH::Clear()
 		vertData[i].item.birthTime = -1;
 		vertData[i].item.dist = DBL_MAX;
 		vertData[i].item.enterEdge = -1;
+		vertData[i].item.isSource = false;
 		vertData[i].index = -1;
 	}
 	sourceVert = -1;
@@ -565,6 +566,7 @@ __host__ __device__ void ICH::Initialize()
 		vertInfos[sourceVert].birthTime = 0;
 		vertInfos[sourceVert].dist = 0.0;
 		vertInfos[sourceVert].enterEdge = -1;
+		vertInfos[sourceVert].isSource = true;
 	}
 
 	if (sourcePointFace != -1)
