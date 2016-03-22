@@ -655,9 +655,12 @@ __host__ __device__ void ICH::PropagateWindow(const Window &win)
 		}
 		else
 		{
-			splitInfos[e0].dist = directDist + win.pseudoSrcDist;
-			splitInfos[e0].pseudoSrcId = win.pseudoSrcId;
-			splitInfos[e0].x = l0 - interX;
+			if (directDist + win.pseudoSrcDist < splitInfos.get(e0).dist)
+			{
+				splitInfos[e0].dist = directDist + win.pseudoSrcDist;
+				splitInfos[e0].pseudoSrcId = win.pseudoSrcId;
+				splitInfos[e0].x = l0 - interX;
+			}
 
 			if (directDist + win.pseudoSrcDist < vertInfos.get(opVert).dist)
 			{
