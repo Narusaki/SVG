@@ -3,6 +3,7 @@
 #include "SVG.cuh"
 #include "book.cuh"
 #include <ctime>
+#include <string>
 
 using namespace std;
 
@@ -10,7 +11,8 @@ using namespace std;
 /*#define TEST_ICHHOST*/
 /*#define TEST_SVG_SSSD2*/
 /*#define TEST_ICH*/
-#define TEST_SVG_MSAD
+/*#define TEST_SVG_MSAD*/
+#define SAVING_SVG
 
 #ifdef TEST_SVG
 int main(int argc, char **argv)
@@ -146,11 +148,11 @@ int main(int argc, char **argv)
 	PriorityQueuesWithHandle<int>::PQItem *pqBuf = new PriorityQueuesWithHandle<int>::PQItem[mesh.vertNum + 1];
 	pq.AssignMemory(pqBuf, mesh.vertNum);
 
-	ICH::SplitItem *splitInfos = new ICH::SplitItem[500 * 10 + 1];
-	ICH::VertItem *vertInfos = new ICH::VertItem[500 * 2 + 1];
+	ICHDevice::SplitItem *splitInfos = new ICHDevice::SplitItem[500 * 10 + 1];
+	ICHDevice::VertItem *vertInfos = new ICHDevice::VertItem[500 * 2 + 1];
 	SVG::PQWinItem *winPQ = new SVG::PQWinItem[WINPQ_SIZE];
 	SVG::PQPseudoWinItem *pseudoWinPQs = new SVG::PQPseudoWinItem[PSEUDOWINPQ_SIZE];
-	ICH::Window *storedWindows = new ICH::Window[STORED_WIN_BUF_SIZE];
+	ICHDevice::Window *storedWindows = new ICHDevice::Window[STORED_WIN_BUF_SIZE];
 	unsigned int *keptFaces = new unsigned int[KEPT_FACE_SIZE];
 
 	int srcFace = -1, dstFace = -1;
@@ -389,6 +391,60 @@ int main(int argc, char **argv)
 
 	delete[] graphDistInfos;
 	delete[] pqBuf;
+
+	svg.FreeSVGStructure();
+	mesh.clear();
+	d_mesh.clearGPU();
+
+	HANDLE_ERROR(cudaDeviceReset());
+	return 0;
+}
+#endif
+
+#ifdef SAVING_SVG
+int main(int argc, char **argv)
+{
+	if (argc < 3)
+	{
+		cout << "[.exe] [in.obj] [K]" << endl;
+		return -1;
+	}
+	HANDLE_ERROR(cudaSetDevice(0));
+	Mesh mesh, d_mesh;
+	mesh.LoadFromFile(argv[1]);
+	cout << "Mesh is loaded." << endl;
+	mesh.copyToGPU(&d_mesh);
+
+	cout << "Mesh is copied into GPU." << endl;
+
+	SVG svg;
+	svg.AssignMesh(&mesh, &d_mesh);
+	svg.SetParameters(stoi(argv[2]), 10, 2);
+	svg.Allocation();
+
+	cout << "(Please check initial memory.)" << endl;
+	system("pause");
+
+	svg.ConstructSVG();
+
+	cout << "SVG is built." << endl;
+	cout << "(Please check final memory.)" << endl;
+	system("pause");
+
+	svg.Free();
+
+	cout << "(Please check SVG-structure + Mesh memory.)" << endl;
+	system("pause");
+
+	svg.CopySVGToHost();
+	cout << "SVG-structure is copied to host." << endl;
+	system("pause");
+
+	string svgFileName = argv[1];
+	svgFileName = svgFileName.substr(0, svgFileName.rfind(".")) + ".svg";
+	cout << "Saving SVG-structure to file..." << endl;
+	svg.SaveSVGToFile(svgFileName.c_str());
+	cout << "Done." << endl;
 
 	svg.FreeSVGStructure();
 	mesh.clear();

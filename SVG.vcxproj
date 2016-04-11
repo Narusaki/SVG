@@ -169,7 +169,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
   <ItemGroup>
     <CudaCompile Include="book.cu" />
     <CudaCompile Include="Geometry.cu" />
-    <CudaCompile Include="ICH.cu" />
+    <CudaCompile Include="ICHDevice.cu" />
     <CudaCompile Include="InitialValueGeodesic.cu" />
     <CudaCompile Include="kernel.cu" />
     <CudaCompile Include="Mesh.cu" />
@@ -178,7 +178,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
   <ItemGroup>
     <ClInclude Include="book.cuh" />
     <ClInclude Include="Geometry.cuh" />
-    <ClInclude Include="ICH.cuh" />
+    <ClInclude Include="ICHDevice.cuh" />
     <ClInclude Include="InitialValueGeodesic.cuh" />
     <ClInclude Include="Mesh.cuh" />
     <ClInclude Include="MyHashTable.cuh" />

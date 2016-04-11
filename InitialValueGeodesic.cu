@@ -1,6 +1,6 @@
 #include "InitialValueGeodesic.cuh"
 
-__device__ InitialValueGeodesic::InitialValueGeodesic()
+InitialValueGeodesic::InitialValueGeodesic()
 {
 	mesh = NULL;
 	startPointIndex = -1;
@@ -9,36 +9,36 @@ __device__ InitialValueGeodesic::InitialValueGeodesic()
 	firstKeyPoint.isInterior = false;
 }
 
-__device__ InitialValueGeodesic::~InitialValueGeodesic()
+InitialValueGeodesic::~InitialValueGeodesic()
 {
 
 }
 
-__device__ void InitialValueGeodesic::AssignMesh(Mesh *mesh_)
+void InitialValueGeodesic::AssignMesh(Mesh *mesh_)
 {
 	mesh = mesh_;
 }
 
-__device__ void InitialValueGeodesic::AssignStartPoint(unsigned startPointIndex_)
+void InitialValueGeodesic::AssignStartPoint(unsigned startPointIndex_)
 {
 	startPointIndex = startPointIndex_;
 	startPointFaceIndex = -1;
 }
 
-__device__ void InitialValueGeodesic::AssignStartPoint(unsigned startPointFaceIndex_, Vector3D startPointPos_)
+void InitialValueGeodesic::AssignStartPoint(unsigned startPointFaceIndex_, Vector3D startPointPos_)
 {
 	startPointFaceIndex = startPointFaceIndex_;
 	startPointPos = startPointPos_;
 	startPointIndex = -1;
 }
 
-__device__ void InitialValueGeodesic::AssignStartDirection(Vector3D direction_)
+void InitialValueGeodesic::AssignStartDirection(Vector3D direction_)
 {
 	direction = direction_;
 	direction.normalize();
 }
 
-__device__ void InitialValueGeodesic::AssignFirstKeyPoint(unsigned iEdge, double pos)
+void InitialValueGeodesic::AssignFirstKeyPoint(unsigned iEdge, double pos)
 {
 	firstKeyPoint.edgeIndex = iEdge;
 	firstKeyPoint.pos = pos;
@@ -46,12 +46,12 @@ __device__ void InitialValueGeodesic::AssignFirstKeyPoint(unsigned iEdge, double
 }
 
 
-__device__ void InitialValueGeodesic::AssignLength(double geodesicLength_)
+void InitialValueGeodesic::AssignLength(double geodesicLength_)
 {
 	geodesicLength = geodesicLength_;
 }
 
-__device__ InitialValueGeodesic::GeodesicKeyPoint InitialValueGeodesic::BuildGeodesicPath()
+InitialValueGeodesic::GeodesicKeyPoint InitialValueGeodesic::BuildGeodesicPath()
 {
 	// collect adjacent faces
 	GeodesicKeyPoint keyPoint;
@@ -102,6 +102,7 @@ __device__ InitialValueGeodesic::GeodesicKeyPoint InitialValueGeodesic::BuildGeo
 	GeodesicKeyPoint prevKeyPoint = keyPoint;
 	int keyPointsNum = 1;
 
+	/*printf("Enter init geodesic loop\n");*/
 	while (curLen < geodesicLength)
 	{
 		unsigned e0 = mesh->edges[keyPoint.edgeIndex].twinEdge;
@@ -224,6 +225,7 @@ __device__ InitialValueGeodesic::GeodesicKeyPoint InitialValueGeodesic::BuildGeo
 		curLen += (src2D - keyPoint2D).length();
 		++keyPointsNum;
 	}
+	/*printf("Exit init geodesic loop\n");*/
 
 	if (curLen > geodesicLength)
 	{

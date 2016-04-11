@@ -4,7 +4,7 @@
 #include "Mesh.cuh"
 #include "PriorityQueue.cuh"
 #include "PriorityQueueWithHandle.cuh"
-#include "ICH.cuh"
+#include "ICHDevice.cuh"
 #include "InitialValueGeodesic.cuh"
 
 const int SVG_BLOCK_NUM = 64;
@@ -43,8 +43,8 @@ public:
 
 public:
 
-	typedef PriorityQueues<ICH::Window>::PQItem PQWinItem;
-	typedef PriorityQueues<ICH::PseudoWindow>::PQItem PQPseudoWinItem;
+	typedef PriorityQueues<ICHDevice::Window>::PQItem PQWinItem;
+	typedef PriorityQueues<ICHDevice::PseudoWindow>::PQItem PQPseudoWinItem;
 
 	__host__ __device__ SVG();
 	__host__ __device__ ~SVG();
@@ -63,14 +63,17 @@ public:
 	// must invoke this method before searching SVG on host
 	void CopySVGToHost();
 
+	void SaveSVGToFile(const char *fileName);
+	void LoadSVGFromFile(const char *fileName);
+
 	__host__ __device__ void SolveSSSD(int s, int t, Mesh mesh,
 		GraphDistInfo * graphDistInfos, PriorityQueuesWithHandle<int> pq);
 
 	__host__ __device__ void SolveSSSD(int f0, Vector3D p0, int f1, Vector3D p1, Mesh mesh,
-		ICH::SplitItem *d_splitInfos, unsigned splitInfoSize,
-		ICH::VertItem *d_vertInfos, unsigned vertInfoSize,
+		ICHDevice::SplitItem *d_splitInfos, unsigned splitInfoSize,
+		ICHDevice::VertItem *d_vertInfos, unsigned vertInfoSize,
 		PQWinItem *winPQBuf, PQPseudoWinItem *pseudoWinPQBuf,
-		ICH::Window *storedWindows, unsigned int *keptFaces,
+		ICHDevice::Window *storedWindows, unsigned int *keptFaces,
 		GraphDistInfo * graphDistInfos, PriorityQueuesWithHandle<int> pq,
 		SVGNode *res, int *lastVert);
 
@@ -92,11 +95,11 @@ public:
 	PQPseudoWinItem *d_pseudoWinPQs;
 
 	// split info buffer for SplitInfo
-	ICH::SplitItem *d_splitInfoBuf; unsigned splitInfoCoef;
-	ICH::VertItem *d_vertInfoBuf; unsigned vertInfoCoef;
+	ICHDevice::SplitItem *d_splitInfoBuf; unsigned splitInfoCoef;
+	ICHDevice::VertItem *d_vertInfoBuf; unsigned vertInfoCoef;
 
 	// other buffers for ICH
-	ICH::Window *d_storedWindowsBuf;
+	ICHDevice::Window *d_storedWindowsBuf;
 	unsigned *d_keptFacesBuf;
 
 	// search parameter
@@ -111,8 +114,8 @@ public:
 
 __global__ void constructSVG(Mesh mesh, int K,
 	SVG::PQWinItem *d_winPQs, SVG::PQPseudoWinItem *d_pseudoWinPQs,
-	ICH::SplitItem *d_splitInfoBuf, unsigned splitInfoCoef,
-	ICH::VertItem *d_vertInfoBuf, unsigned vertInfoCoef,
-	ICH::Window *d_storedWindowsBuf, unsigned *d_keptFacesBuf,
+	ICHDevice::SplitItem *d_splitInfoBuf, unsigned splitInfoCoef,
+	ICHDevice::VertItem *d_vertInfoBuf, unsigned vertInfoCoef,
+	ICHDevice::Window *d_storedWindowsBuf, unsigned *d_keptFacesBuf,
 	SVG::SVGNode *d_svg, int *d_svg_tails);
 #endif

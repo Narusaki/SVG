@@ -8,28 +8,28 @@ using namespace std;
 
 __global__ void constructSVG(Mesh mesh, int K,
 	SVG::PQWinItem *d_winPQs, SVG::PQPseudoWinItem *d_pseudoWinPQs,
-	ICH::SplitItem *d_splitInfoBuf, unsigned splitInfoCoef,
-	ICH::VertItem *d_vertInfoBuf, unsigned vertInfoCoef,
-	ICH::Window *d_storedWindowsBuf, unsigned *d_keptFacesBuf,
+	ICHDevice::SplitItem *d_splitInfoBuf, unsigned splitInfoCoef,
+	ICHDevice::VertItem *d_vertInfoBuf, unsigned vertInfoCoef,
+	ICHDevice::Window *d_storedWindowsBuf, unsigned *d_keptFacesBuf,
 	SVG::SVGNode *d_svg, int *d_svg_tails)
 {
 	int idx = threadIdx.x + blockIdx.x * blockDim.x;
 	int totalThreadNum = blockDim.x * gridDim.x;
 
-	PriorityQueues<ICH::Window> winPQ(WINPQ_SIZE - 1);
-	PriorityQueues<ICH::PseudoWindow> pseudoWinPQ(PSEUDOWINPQ_SIZE - 1);
+	PriorityQueues<ICHDevice::Window> winPQ(WINPQ_SIZE - 1);
+	PriorityQueues<ICHDevice::PseudoWindow> pseudoWinPQ(PSEUDOWINPQ_SIZE - 1);
 	winPQ.AssignMemory(d_winPQs + idx * WINPQ_SIZE, WINPQ_SIZE - 1);
 	pseudoWinPQ.AssignMemory(d_pseudoWinPQs + idx * PSEUDOWINPQ_SIZE, PSEUDOWINPQ_SIZE - 1);
 
-	ICH ich;
+	ICHDevice ich;
 	ich.AssignMesh(&mesh);
 	ich.AssignBuffers(d_splitInfoBuf + idx * (K * splitInfoCoef + 1), K * splitInfoCoef,
 		d_vertInfoBuf + idx * (K * vertInfoCoef + 1), K * vertInfoCoef,
 		winPQ, pseudoWinPQ,
 		d_storedWindowsBuf + idx * STORED_WIN_BUF_SIZE, d_keptFacesBuf + idx * KEPT_FACE_SIZE);
 
-	InitialValueGeodesic initGeodesic;
-	initGeodesic.AssignMesh(&mesh);
+// 	InitialValueGeodesic initGeodesic;
+// 	initGeodesic.AssignMesh(&mesh);
 
 	for (int i = idx; i < mesh.vertNum; i += totalThreadNum)
 	{
@@ -127,9 +127,9 @@ bool SVG::Allocation()
 
 	// allocation info buffers for ICH
 	// for splitInfo and vertInfo, allocate one more buffer for each thread in the case of hash-table getting full
-	HANDLE_ERROR(cudaMalloc((void**)&d_splitInfoBuf, totalThreadNum * (splitInfoCoef * K + 1) * sizeof(ICH::SplitItem)));
-	HANDLE_ERROR(cudaMalloc((void**)&d_vertInfoBuf, totalThreadNum * (vertInfoCoef * K + 1) * sizeof(ICH::VertItem)));
-	HANDLE_ERROR(cudaMalloc((void**)&d_storedWindowsBuf, totalThreadNum * STORED_WIN_BUF_SIZE * sizeof(ICH::Window)));
+	HANDLE_ERROR(cudaMalloc((void**)&d_splitInfoBuf, totalThreadNum * (splitInfoCoef * K + 1) * sizeof(ICHDevice::SplitItem)));
+	HANDLE_ERROR(cudaMalloc((void**)&d_vertInfoBuf, totalThreadNum * (vertInfoCoef * K + 1) * sizeof(ICHDevice::VertItem)));
+	HANDLE_ERROR(cudaMalloc((void**)&d_storedWindowsBuf, totalThreadNum * STORED_WIN_BUF_SIZE * sizeof(ICHDevice::Window)));
 	HANDLE_ERROR(cudaMalloc((void**)&d_keptFacesBuf, totalThreadNum * KEPT_FACE_SIZE * sizeof(unsigned)));
 
 	// allocation for SVG structure
@@ -183,6 +183,8 @@ void SVG::ConstructSVG()
 
 void SVG::CopySVGToHost()
 {
+	if (svg) delete[] svg;
+	if (svg_tails) delete[] svg_tails;
 	svg = new SVGNode[mesh->vertNum * K];
 	svg_tails = new int[mesh->vertNum];
 
@@ -203,6 +205,39 @@ void SVG::CopySVGToHost()
 	// 	}
 }
 
+void SVG::SaveSVGToFile(const char *fileName)
+{
+	ofstream output(fileName, ios::binary);
+	for (int i = 0; i < mesh->vertNum; ++i)
+	{
+		output.write((char*)(svg_tails + i), sizeof(int));
+		output.write((char*)(svg + i * K), sizeof(SVGNode) * svg_tails[i]);
+	}
+	output.close();
+}
+
+void SVG::LoadSVGFromFile(const char *fileName)
+{
+	if (svg) delete[] svg;
+	if (svg_tails) delete[] svg_tails;
+	svg = new SVGNode[mesh->vertNum * K];
+	svg_tails = new int[mesh->vertNum];
+
+	ifstream input(fileName, ios::binary);
+	for (int i = 0; i < mesh->vertNum; ++i)
+	{
+		input.read((char*)(svg_tails + i), sizeof(int));
+		input.read((char*)(svg + i * K), sizeof(SVGNode) * svg_tails[i]);
+	}
+	input.close();
+
+	double degree = 0;
+	for (int i = 0; i < mesh->vertNum; ++i)
+		degree += svg_tails[i];
+	degree /= mesh->vertNum;
+	cout << "Average degree of node in SVG: " << degree << endl;
+}
+
 __host__ __device__ void SVG::SolveSSSD(int s, int t, Mesh mesh, GraphDistInfo * graphDistInfos, PriorityQueuesWithHandle<int> pq)
 {
 	// TODO: use Astar algorithm to search dist&path to t; use Euclidean dist as heuristic prediction
@@ -216,19 +251,19 @@ __host__ __device__ void SVG::SolveSSSD(int s, int t, Mesh mesh, GraphDistInfo *
 }
 
 __host__ __device__ void SVG::SolveSSSD(int f0, Vector3D p0, int f1, Vector3D p1, Mesh mesh,
-	ICH::SplitItem *d_splitInfos, unsigned splitInfoSize,
-	ICH::VertItem *d_vertInfos, unsigned vertInfoSize,
+	ICHDevice::SplitItem *d_splitInfos, unsigned splitInfoSize,
+	ICHDevice::VertItem *d_vertInfos, unsigned vertInfoSize,
 	PQWinItem *winPQBuf, PQPseudoWinItem *pseudoWinPQBuf,
-	ICH::Window *storedWindows, unsigned int *keptFaces,
+	ICHDevice::Window *storedWindows, unsigned int *keptFaces,
 	GraphDistInfo * graphDistInfos, PriorityQueuesWithHandle<int> pq,
 	SVGNode *res, int *saddleVertNearDst)
 {
 	// TODO: run ICH on the two arbitrary points separately, and run a special single-source-single-destination algorithm
 	searchType = DIJKSTRA;
-	ICH ich;
+	ICHDevice ich;
 
-	PriorityQueues<ICH::Window> local_winPQ(WINPQ_SIZE - 1);
-	PriorityQueues<ICH::PseudoWindow> local_pseudoWinPQ(PSEUDOWINPQ_SIZE - 1);
+	PriorityQueues<ICHDevice::Window> local_winPQ(WINPQ_SIZE - 1);
+	PriorityQueues<ICHDevice::PseudoWindow> local_pseudoWinPQ(PSEUDOWINPQ_SIZE - 1);
 	local_winPQ.AssignMemory(winPQBuf, WINPQ_SIZE - 1);
 	local_pseudoWinPQ.AssignMemory(pseudoWinPQBuf, PSEUDOWINPQ_SIZE - 1);
 
